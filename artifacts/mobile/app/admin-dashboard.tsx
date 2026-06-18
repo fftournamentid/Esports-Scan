@@ -51,7 +51,7 @@ export default function AdminDashboardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { userProfile } = useAuth();
+  const { userProfile, authLoading } = useAuth();
   const {
     tournaments,
     deleteTournament,
@@ -59,6 +59,8 @@ export default function AdminDashboardScreen() {
     cancelTournament,
     restoreTournament,
   } = useTournament();
+
+  if (authLoading) return null;
 
   if (userProfile?.role !== 'admin') {
     return <Redirect href="/" />;

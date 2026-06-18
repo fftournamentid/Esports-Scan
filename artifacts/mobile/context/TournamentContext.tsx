@@ -42,6 +42,8 @@ interface TournamentContextType {
   recentWinners: RecentWinner[];
   paymentSettings: PaymentSettings;
   isLoading: boolean;
+  registrationsLoading: boolean;
+  registrationsError: string | null;
   addTournament: (t: Omit<Tournament, 'id' | 'slotsUsed'>) => Promise<void>;
   updateTournament: (id: string, updates: Partial<Tournament>) => Promise<void>;
   deleteTournament: (id: string) => Promise<void>;
@@ -78,6 +80,8 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
   const [recentWinners, setRecentWinners] = useState<RecentWinner[]>([]);
   const [paymentSettings, setPaymentSettingsState] = useState<PaymentSettings>(DEFAULT_PAYMENT);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [registrationsLoading, setRegistrationsLoading] = useState<boolean>(true);
+  const [registrationsError, setRegistrationsError] = useState<string | null>(null);
 
   const regUnsubRef = useRef<(() => void) | null>(null);
   const tournamentsRef = useRef<Tournament[]>([]);
@@ -105,10 +109,23 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
         regUnsubRef.current();
         regUnsubRef.current = null;
       }
+      setRegistrationsError(null);
       if (user) {
-        regUnsubRef.current = subscribeUserRegistrations(user.uid, setJoinedTournaments);
+        setRegistrationsLoading(true);
+        regUnsubRef.current = subscribeUserRegistrations(
+          user.uid,
+          (regs) => {
+            setJoinedTournaments(regs);
+            setRegistrationsLoading(false);
+          },
+          (err) => {
+            setRegistrationsError(err.message);
+            setRegistrationsLoading(false);
+          },
+        );
       } else {
         setJoinedTournaments([]);
+        setRegistrationsLoading(false);
       }
     });
     unsubs.push(unsubAuth);
@@ -248,6 +265,8 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
         recentWinners,
         paymentSettings,
         isLoading,
+        registrationsLoading,
+        registrationsError,
         addTournament,
         updateTournament,
         deleteTournament,

@@ -10,10 +10,10 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import type { JoinedTournament, JoinStatus } from '@/types';
+import type { JoinedTournament, JoinStatus, RecentWinner } from '@/types';
 import { db } from './firebase';
 
-const COL = { registrations: 'registrations', tournaments: 'tournaments' } as const;
+const COL = { registrations: 'registrations', tournaments: 'tournaments', winners: 'winners' } as const;
 
 function docToJoin(id: string, data: Record<string, unknown>): JoinedTournament {
   return {
@@ -28,11 +28,19 @@ function docToJoin(id: string, data: Record<string, unknown>): JoinedTournament 
 export function subscribeUserRegistrations(
   userId: string,
   cb: (regs: JoinedTournament[]) => void,
+  onError?: (err: Error) => void,
 ): () => void {
   const q = query(collection(db, COL.registrations), where('userId', '==', userId));
-  return onSnapshot(q, (snap) => {
-    cb(snap.docs.map((d) => docToJoin(d.id, d.data() as Record<string, unknown>)));
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      cb(snap.docs.map((d) => docToJoin(d.id, d.data() as Record<string, unknown>)));
+    },
+    (err) => {
+      console.warn('[Registrations] Firestore error:', err.message);
+      onError?.(err);
+    },
+  );
 }
 
 export function subscribeTournamentRegistrations(
@@ -40,9 +48,15 @@ export function subscribeTournamentRegistrations(
   cb: (regs: JoinedTournament[]) => void,
 ): () => void {
   const q = query(collection(db, COL.registrations), where('tournamentId', '==', tournamentId));
-  return onSnapshot(q, (snap) => {
-    cb(snap.docs.map((d) => docToJoin(d.id, d.data() as Record<string, unknown>)));
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      cb(snap.docs.map((d) => docToJoin(d.id, d.data() as Record<string, unknown>)));
+    },
+    (err) => {
+      console.warn('[TournamentRegistrations] Firestore error:', err.message);
+    },
+  );
 }
 
 export async function createRegistration(
@@ -64,4 +78,34 @@ export async function updateRegistrationStatus(
   status: JoinStatus,
 ): Promise<void> {
   await updateDoc(doc(db, COL.registrations, registrationId), { status });
+}
+
+export function subscribeUserWinners(
+  freeFireUid: string,
+  cb: (winners: RecentWinner[]) => void,
+  onError?: (err: Error) => void,
+): () => void {
+  const q = query(collection(db, COL.winners), where('uid', '==', freeFireUid));
+  return onSnapshot(
+    q,
+    (snap) => {
+      cb(
+        snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            ...data,
+            id: d.id,
+            publishedAt:
+              data.publishedAt instanceof Timestamp
+                ? data.publishedAt.toDate().toISOString()
+                : (data.publishedAt as string) ?? new Date().toISOString(),
+          } as RecentWinner;
+        }),
+      );
+    },
+    (err) => {
+      console.warn('[UserWinners] Firestore error:', err.message);
+      onError?.(err);
+    },
+  );
 }
