@@ -1,0 +1,53 @@
+import {
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import type { UserProfile } from '@/types';
+import { auth, db } from './firebase';
+
+export async function signUp(
+  email: string,
+  password: string,
+  name: string,
+  freeFireUid: string,
+): Promise<void> {
+  const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  await updateProfile(cred.user, { displayName: name.trim() });
+  await setDoc(doc(db, 'users', cred.user.uid), {
+    uid: cred.user.uid,
+    name: name.trim(),
+    email: email.trim().toLowerCase(),
+    freeFireUid: freeFireUid.trim(),
+    role: 'user',
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function signIn(email: string, password: string): Promise<void> {
+  await signInWithEmailAndPassword(auth, email.trim(), password);
+}
+
+export async function logOut(): Promise<void> {
+  await signOut(auth);
+}
+
+export async function sendPasswordReset(email: string): Promise<void> {
+  await sendPasswordResetEmail(auth, email.trim());
+}
+
+export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+  const snap = await getDoc(doc(db, 'users', uid));
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  return {
+    uid: data.uid ?? uid,
+    name: data.name ?? '',
+    email: data.email ?? '',
+    freeFireUid: data.freeFireUid ?? '',
+    role: data.role ?? 'user',
+  };
+}
