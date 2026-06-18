@@ -37,8 +37,10 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await signIn(email, password);
-      router.replace('/' as never);
+      // Do NOT navigate here — AuthGate reads userProfile.role and routes
+      // admin → /admin-dashboard, user → /
     } catch (e: unknown) {
+      setLoading(false);
       const msg = (e as { code?: string; message?: string }).code ?? '';
       if (msg.includes('user-not-found') || msg.includes('wrong-password') || msg.includes('invalid-credential')) {
         setError('Invalid email or password. Please try again.');
@@ -47,15 +49,16 @@ export default function LoginScreen() {
       } else {
         setError('Login failed. Please check your connection and try again.');
       }
-    } finally {
-      setLoading(false);
     }
   }
 
   const s = makeStyles(colors);
 
   return (
-    <KeyboardAvoidingView style={[s.root, { backgroundColor: colors.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={[s.root, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <ScrollView
         contentContainerStyle={[s.scroll, { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
@@ -92,6 +95,7 @@ export default function LoginScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="next"
+                editable={!loading}
               />
             </View>
           </View>
@@ -109,8 +113,9 @@ export default function LoginScreen() {
                 secureTextEntry={!showPass}
                 returnKeyType="done"
                 onSubmitEditing={handleLogin}
+                editable={!loading}
               />
-              <TouchableOpacity onPress={() => setShowPass(!showPass)} style={s.eyeBtn}>
+              <TouchableOpacity onPress={() => setShowPass(!showPass)} style={s.eyeBtn} disabled={loading}>
                 <Feather name={showPass ? 'eye-off' : 'eye'} size={16} color={colors.mutedForeground} />
               </TouchableOpacity>
             </View>
@@ -138,6 +143,7 @@ export default function LoginScreen() {
             style={[s.outlineBtn, { borderColor: colors.border }]}
             activeOpacity={0.8}
             onPress={() => router.push('/auth/signup' as never)}
+            disabled={loading}
           >
             <Text style={[s.outlineBtnText, { color: colors.foreground }]}>Create New Account</Text>
           </TouchableOpacity>

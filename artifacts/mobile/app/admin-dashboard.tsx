@@ -13,8 +13,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StatusBadge from '@/components/StatusBadge';
+import { useAuth } from '@/context/AuthContext';
 import { Tournament, useTournament } from '@/context/TournamentContext';
 import { useColors } from '@/hooks/useColors';
+import { logOut } from '@/services/authService';
 import { formatDateDisplay, formatTimeIST, parseISTDateTime } from '@/utils/time';
 
 function getRoomStatusLabel(t: Tournament): { label: string; color: string } | null {
@@ -49,6 +51,7 @@ export default function AdminDashboardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { userProfile } = useAuth();
   const {
     tournaments,
     deleteTournament,
@@ -59,7 +62,10 @@ export default function AdminDashboardScreen() {
     isAdminAuthenticated,
   } = useTournament();
 
-  if (!isAdminAuthenticated) {
+  const isRoleAdmin = userProfile?.role === 'admin';
+  const hasAccess = isAdminAuthenticated || isRoleAdmin;
+
+  if (!hasAccess) {
     return <Redirect href="/admin/login" />;
   }
 
@@ -109,9 +115,13 @@ export default function AdminDashboardScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  const handleLogout = () => {
-    logoutAdmin();
-    router.replace('/');
+  const handleLogout = async () => {
+    if (isRoleAdmin) {
+      await logOut();
+    } else {
+      logoutAdmin();
+      router.replace('/');
+    }
   };
 
   const stats = [

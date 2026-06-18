@@ -48,8 +48,9 @@ export default function SignupScreen() {
     setLoading(true);
     try {
       await signUp(email, password, name, freeFireUid);
-      router.replace('/' as never);
+      // Do NOT navigate here — AuthGate reads userProfile.role and routes accordingly
     } catch (e: unknown) {
+      setLoading(false);
       const msg = (e as { code?: string }).code ?? '';
       if (msg.includes('email-already-in-use')) {
         setError('This email is already registered. Please sign in instead.');
@@ -60,15 +61,16 @@ export default function SignupScreen() {
       } else {
         setError('Registration failed. Please check your connection and try again.');
       }
-    } finally {
-      setLoading(false);
     }
   }
 
   const s = makeStyles(colors);
 
   return (
-    <KeyboardAvoidingView style={[s.root, { backgroundColor: colors.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={[s.root, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <ScrollView
         contentContainerStyle={[s.scroll, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
@@ -98,6 +100,7 @@ export default function SignupScreen() {
             value={name}
             onChangeText={setName}
             colors={colors}
+            disabled={loading}
           />
           <Field
             label="EMAIL"
@@ -108,6 +111,7 @@ export default function SignupScreen() {
             keyboardType="email-address"
             autoCapitalize="none"
             colors={colors}
+            disabled={loading}
           />
           <Field
             label="FREE FIRE UID"
@@ -117,6 +121,7 @@ export default function SignupScreen() {
             onChangeText={setFreeFireUid}
             keyboardType="numeric"
             colors={colors}
+            disabled={loading}
           />
 
           <View style={s.fieldGroup}>
@@ -130,8 +135,9 @@ export default function SignupScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPass}
+                editable={!loading}
               />
-              <TouchableOpacity onPress={() => setShowPass(!showPass)} style={s.eyeBtn}>
+              <TouchableOpacity onPress={() => setShowPass(!showPass)} style={s.eyeBtn} disabled={loading}>
                 <Feather name={showPass ? 'eye-off' : 'eye'} size={16} color={colors.mutedForeground} />
               </TouchableOpacity>
             </View>
@@ -145,6 +151,7 @@ export default function SignupScreen() {
             onChangeText={setConfirmPw}
             secureTextEntry={!showPass}
             colors={colors}
+            disabled={loading}
           />
 
           <TouchableOpacity
@@ -169,6 +176,7 @@ export default function SignupScreen() {
             style={[s.outlineBtn, { borderColor: colors.border }]}
             activeOpacity={0.8}
             onPress={() => router.push('/auth/login' as never)}
+            disabled={loading}
           >
             <Text style={[s.outlineBtnText, { color: colors.foreground }]}>Sign In Instead</Text>
           </TouchableOpacity>
@@ -179,7 +187,7 @@ export default function SignupScreen() {
 }
 
 function Field({
-  label, icon, placeholder, value, onChangeText, keyboardType, autoCapitalize, secureTextEntry, colors,
+  label, icon, placeholder, value, onChangeText, keyboardType, autoCapitalize, secureTextEntry, colors, disabled,
 }: {
   label: string;
   icon: React.ComponentProps<typeof Feather>['name'];
@@ -190,6 +198,7 @@ function Field({
   autoCapitalize?: 'none' | 'words';
   secureTextEntry?: boolean;
   colors: ReturnType<typeof useColors>;
+  disabled?: boolean;
 }) {
   const s = makeStyles(colors);
   return (
@@ -207,6 +216,7 @@ function Field({
           autoCapitalize={autoCapitalize ?? 'words'}
           autoCorrect={false}
           secureTextEntry={secureTextEntry}
+          editable={!disabled}
         />
       </View>
     </View>

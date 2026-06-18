@@ -23,24 +23,37 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { firebaseUser, authLoading } = useAuth();
+  const { firebaseUser, userProfile, authLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     if (authLoading) return;
+
     const firstSegment = segments[0] as string | undefined;
     const inAuthGroup = firstSegment === "auth";
     const inAdminGroup =
       firstSegment === "admin" ||
       firstSegment === "admin-dashboard";
 
-    if (!firebaseUser && !inAuthGroup && !inAdminGroup) {
-      router.replace("/auth/login" as never);
-    } else if (firebaseUser && inAuthGroup) {
-      router.replace("/" as never);
+    const isAdmin = userProfile?.role === "admin";
+
+    if (!firebaseUser) {
+      if (!inAuthGroup) {
+        router.replace("/auth/login" as never);
+      }
+    } else {
+      if (inAuthGroup) {
+        if (isAdmin) {
+          router.replace("/admin-dashboard" as never);
+        } else {
+          router.replace("/" as never);
+        }
+      } else if (inAdminGroup && !isAdmin) {
+        router.replace("/" as never);
+      }
     }
-  }, [firebaseUser, authLoading, segments]);
+  }, [firebaseUser, userProfile, authLoading, segments]);
 
   return <>{children}</>;
 }

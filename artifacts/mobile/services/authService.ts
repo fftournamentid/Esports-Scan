@@ -1,4 +1,5 @@
 import {
+  User as FirebaseUser,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
@@ -50,4 +51,18 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     freeFireUid: data.freeFireUid ?? '',
     role: data.role ?? 'user',
   };
+}
+
+export async function ensureUserProfile(user: FirebaseUser): Promise<void> {
+  const ref = doc(db, 'users', user.uid);
+  const snap = await getDoc(ref);
+  if (snap.exists()) return;
+  await setDoc(ref, {
+    uid: user.uid,
+    name: user.displayName ?? 'Player',
+    email: user.email?.toLowerCase() ?? '',
+    freeFireUid: '',
+    role: 'user',
+    createdAt: serverTimestamp(),
+  });
 }
