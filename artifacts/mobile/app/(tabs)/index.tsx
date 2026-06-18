@@ -120,9 +120,6 @@ export default function HomeScreen() {
   const [catFilter, setCatFilter] = useState<'all' | TournamentCategory>('all');
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const tapCount = useRef(0);
-  const lastTap = useRef(0);
-
   useEffect(() => {
     let notifs: AppNotification[] = [];
     let lastRead = '';
@@ -138,17 +135,6 @@ export default function HomeScreen() {
     });
     return unsub;
   }, []);
-
-  function handleLogoTap() {
-    const now = Date.now();
-    if (now - lastTap.current > 3000) tapCount.current = 0;
-    lastTap.current = now;
-    tapCount.current += 1;
-    if (tapCount.current >= 15) {
-      tapCount.current = 0;
-      router.push('/admin/login' as never);
-    }
-  }
 
   const visible = tournaments.filter(t => t.published && t.status !== 'cancelled').filter(t => {
     if (statusFilter !== 'all' && t.status !== statusFilter) return false;
@@ -166,15 +152,13 @@ export default function HomeScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPadding + 12 }]}>
-        <TouchableOpacity onPress={handleLogoTap} activeOpacity={1}>
-          <View style={styles.logoRow}>
-            <Image source={require('@/assets/images/icon.png')} style={styles.logoImg} />
-            <View>
-              <Text style={[styles.appTitle, { color: colors.primary }]}>FREE FIRE</Text>
-              <Text style={[styles.appSubtitle, { color: colors.mutedForeground }]}>TOURNAMENT</Text>
-            </View>
+        <View style={styles.logoRow}>
+          <Image source={require('@/assets/images/icon.png')} style={styles.logoImg} />
+          <View>
+            <Text style={[styles.appTitle, { color: colors.primary }]}>FREE FIRE</Text>
+            <Text style={[styles.appSubtitle, { color: colors.mutedForeground }]}>TOURNAMENT</Text>
           </View>
-        </TouchableOpacity>
+        </View>
         <View style={styles.headerRight}>
           <TouchableOpacity
             onPress={() => router.push('/notifications' as never)}

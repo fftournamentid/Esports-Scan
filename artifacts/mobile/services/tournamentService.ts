@@ -111,26 +111,21 @@ const DEFAULT_PAYMENT: PaymentSettings = {
   whatsappNumber: '917488765246',
 };
 
-const DEFAULT_ADMIN_PW = 'admin123';
-
 export function subscribeAppSettings(
-  cb: (data: { adminPassword: string; payment: PaymentSettings }) => void,
+  cb: (data: { payment: PaymentSettings }) => void,
 ): () => void {
   return onSnapshot(doc(db, COL.settings, 'app'), (snap) => {
     if (snap.exists()) {
-      const data = snap.data() as { adminPassword?: string; payment?: PaymentSettings };
-      cb({
-        adminPassword: data.adminPassword ?? DEFAULT_ADMIN_PW,
-        payment: data.payment ?? DEFAULT_PAYMENT,
-      });
+      const data = snap.data() as { payment?: PaymentSettings };
+      cb({ payment: data.payment ?? DEFAULT_PAYMENT });
     } else {
-      cb({ adminPassword: DEFAULT_ADMIN_PW, payment: DEFAULT_PAYMENT });
+      cb({ payment: DEFAULT_PAYMENT });
     }
   });
 }
 
 export async function updateAppSettings(
-  data: Partial<{ adminPassword: string; payment: PaymentSettings }>,
+  data: Partial<{ payment: PaymentSettings }>,
 ): Promise<void> {
   await setDoc(doc(db, COL.settings, 'app'), data, { merge: true });
 }

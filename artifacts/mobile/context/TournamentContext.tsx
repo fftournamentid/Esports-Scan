@@ -41,8 +41,6 @@ interface TournamentContextType {
   joinedTournaments: JoinedTournament[];
   recentWinners: RecentWinner[];
   paymentSettings: PaymentSettings;
-  adminPassword: string;
-  isAdminAuthenticated: boolean;
   isLoading: boolean;
   addTournament: (t: Omit<Tournament, 'id' | 'slotsUsed'>) => Promise<void>;
   updateTournament: (id: string, updates: Partial<Tournament>) => Promise<void>;
@@ -52,9 +50,6 @@ interface TournamentContextType {
   joinTournament: (data: Omit<JoinedTournament, 'id' | 'status' | 'joinedAt' | 'userId'>) => Promise<void>;
   updateJoinStatus: (joinId: string, status: JoinStatus) => Promise<void>;
   updatePaymentSettings: (settings: PaymentSettings) => Promise<void>;
-  setAdminPassword: (password: string) => Promise<void>;
-  authenticateAdmin: (password: string) => boolean;
-  logoutAdmin: () => void;
   loadData: () => Promise<void>;
   getTournamentById: (id: string) => Tournament | undefined;
   getJoinByTournamentId: (tournamentId: string) => JoinedTournament | undefined;
@@ -82,8 +77,6 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
   const [joinedTournaments, setJoinedTournaments] = useState<JoinedTournament[]>([]);
   const [recentWinners, setRecentWinners] = useState<RecentWinner[]>([]);
   const [paymentSettings, setPaymentSettingsState] = useState<PaymentSettings>(DEFAULT_PAYMENT);
-  const [adminPassword, setAdminPasswordState] = useState<string>('admin123');
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const regUnsubRef = useRef<(() => void) | null>(null);
@@ -102,8 +95,7 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
     const unsubW = subscribeWinners(setRecentWinners);
     unsubs.push(unsubW);
 
-    const unsubSettings = subscribeAppSettings(({ adminPassword: pw, payment }) => {
-      setAdminPasswordState(pw);
+    const unsubSettings = subscribeAppSettings(({ payment }) => {
       setPaymentSettingsState(payment);
     });
     unsubs.push(unsubSettings);
@@ -223,21 +215,6 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
     setPaymentSettingsState(settings);
   }, []);
 
-  const setAdminPassword = useCallback(async (password: string) => {
-    await updateAppSettings({ adminPassword: password });
-    setAdminPasswordState(password);
-  }, []);
-
-  const authenticateAdmin = useCallback((password: string): boolean => {
-    if (password === adminPassword) {
-      setIsAdminAuthenticated(true);
-      return true;
-    }
-    return false;
-  }, [adminPassword]);
-
-  const logoutAdmin = useCallback(() => setIsAdminAuthenticated(false), []);
-
   const loadData = useCallback(async () => {}, []);
 
   const getTournamentById = useCallback(
@@ -270,8 +247,6 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
         joinedTournaments,
         recentWinners,
         paymentSettings,
-        adminPassword,
-        isAdminAuthenticated,
         isLoading,
         addTournament,
         updateTournament,
@@ -281,9 +256,6 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
         joinTournament,
         updateJoinStatus,
         updatePaymentSettings,
-        setAdminPassword,
-        authenticateAdmin,
-        logoutAdmin,
         loadData,
         getTournamentById,
         getJoinByTournamentId,

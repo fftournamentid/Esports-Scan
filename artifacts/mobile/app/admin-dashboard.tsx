@@ -58,15 +58,10 @@ export default function AdminDashboardScreen() {
     updateTournament,
     cancelTournament,
     restoreTournament,
-    logoutAdmin,
-    isAdminAuthenticated,
   } = useTournament();
 
-  const isRoleAdmin = userProfile?.role === 'admin';
-  const hasAccess = isAdminAuthenticated || isRoleAdmin;
-
-  if (!hasAccess) {
-    return <Redirect href="/admin/login" />;
+  if (userProfile?.role !== 'admin') {
+    return <Redirect href="/" />;
   }
 
   const topPadding = Platform.OS === 'web' ? 67 : insets.top;
@@ -116,12 +111,7 @@ export default function AdminDashboardScreen() {
   };
 
   const handleLogout = async () => {
-    if (isRoleAdmin) {
-      await logOut();
-    } else {
-      logoutAdmin();
-      router.replace('/');
-    }
+    await logOut();
   };
 
   const stats = [
