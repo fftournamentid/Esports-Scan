@@ -86,3 +86,16 @@ export interface AppNotification {
   createdAt: string;
   sent: boolean;
 }
+
+export interface MatchResult {
+  id: string;
+  tournamentId: string;
+  tournamentName: string;
+  userId: string;
+  uid: string;
+  playerName: string;
+  kills: number;
+  placement: number;
+  prize: string;
+  createdAt: string;
+}
