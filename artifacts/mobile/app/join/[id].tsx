@@ -3,6 +3,7 @@ import * as Linking from 'expo-linking';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import {
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -24,22 +25,16 @@ export default function JoinFormScreen() {
   const t = getTournamentById(id ?? '');
   const topPadding = Platform.OS === 'web' ? 67 : insets.top;
 
-  const openWhatsApp = () => {
-    const msg = [
-      `*Free Fire Tournament Registration*`,
-      ``,
-      `Tournament: ${t?.name ?? ''}`,
-      `Date: ${t?.date ?? ''} at ${t?.time ?? ''}`,
-      ``,
-      `Player Name: [Your Name]`,
-      `Free Fire UID: [Your UID]`,
-      `UTR Number: [UTR / Transaction ID]`,
-      `Payment Screenshot: [Attach screenshot]`,
-      ``,
-      `Please verify and approve my entry. Thank you!`,
-    ].join('\n');
-
-    Linking.openURL(`https://wa.me/${paymentSettings.whatsappNumber}?text=${encodeURIComponent(msg)}`);
+  const openWhatsAppSupport = () => {
+    const waNumber = paymentSettings.whatsappNumber.replace(/\D/g, '');
+    if (!waNumber) {
+      Alert.alert('Unavailable', 'WhatsApp support is not configured yet.');
+      return;
+    }
+    const msg = t
+      ? `Hi, I need help with the tournament: ${t.name}`
+      : `Hi, I need support for a tournament.`;
+    Linking.openURL(`https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`);
   };
 
   if (!t) {
@@ -82,25 +77,24 @@ export default function JoinFormScreen() {
           </View>
         </View>
 
-        <View style={[styles.instructionBox, { backgroundColor: '#0A2E1A', borderColor: '#25D366' + '66' }]}>
+        <View style={[styles.instructionBox, { backgroundColor: colors.card, borderColor: colors.primary + '55' }]}>
           <View style={styles.instructionHeader}>
-            <Feather name="message-circle" size={18} color="#25D366" />
-            <Text style={[styles.instructionTitle, { color: '#25D366' }]}>How to Join</Text>
+            <Feather name="info" size={18} color={colors.primary} />
+            <Text style={[styles.instructionTitle, { color: colors.primary }]}>How to Register</Text>
           </View>
-          <Text style={[styles.instructionSubtitle, { color: '#CCCCCC' }]}>
-            To join this tournament, send the following details on WhatsApp:
+          <Text style={[styles.instructionSubtitle, { color: colors.mutedForeground }]}>
+            To register, go to the tournament page and complete these steps:
           </Text>
           <View style={styles.detailsList}>
             {[
-              'Player Name',
-              'Free Fire UID',
-              'Tournament Name',
-              'UTR Number (if payment required)',
-              'Payment Screenshot',
+              'Pay the entry fee via UPI / QR code shown',
+              'Enter your UTR / Transaction ID',
+              'Click "Submit Registration"',
+              'Wait for admin approval',
             ].map((item, i) => (
               <View key={i} style={styles.detailItem}>
-                <View style={[styles.bullet, { backgroundColor: '#25D366' }]} />
-                <Text style={[styles.detailText, { color: '#EEEEEE' }]}>{item}</Text>
+                <View style={[styles.bullet, { backgroundColor: colors.primary }]} />
+                <Text style={[styles.detailText, { color: colors.foreground }]}>{item}</Text>
               </View>
             ))}
           </View>
@@ -108,11 +102,19 @@ export default function JoinFormScreen() {
 
         <TouchableOpacity
           style={styles.waButton}
-          onPress={openWhatsApp}
+          onPress={openWhatsAppSupport}
           activeOpacity={0.85}
         >
-          <Feather name="message-circle" size={22} color="#FFFFFF" />
-          <Text style={styles.waButtonText}>JOIN ON WHATSAPP</Text>
+          <Feather name="message-circle" size={20} color="#FFFFFF" />
+          <Text style={styles.waButtonText}>WHATSAPP SUPPORT</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.backToTournament, { borderColor: colors.border, backgroundColor: colors.card }]}
+          onPress={() => router.back()}
+        >
+          <Feather name="arrow-left" size={16} color={colors.mutedForeground} />
+          <Text style={[styles.backToTournamentText, { color: colors.mutedForeground }]}>Back to Tournament</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -147,15 +149,15 @@ const styles = StyleSheet.create({
   detailText: { fontSize: 14, fontWeight: '500' },
   waButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, paddingVertical: 18, borderRadius: 14,
+    gap: 10, paddingVertical: 16, borderRadius: 14,
     backgroundColor: '#25D366',
-    shadowColor: '#25D366',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
   },
   waButtonText: {
-    fontSize: 16, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1.5,
+    fontSize: 15, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1.5,
   },
+  backToTournament: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 13, borderRadius: 12, borderWidth: 1,
+  },
+  backToTournamentText: { fontSize: 14, fontWeight: '600' },
 });

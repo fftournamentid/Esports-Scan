@@ -134,6 +134,13 @@ export default function AdminDashboardScreen() {
 
   const menuItems = [
     {
+      icon: 'check-square' as const,
+      label: 'Payment Verification',
+      sub: 'Review & approve player registrations by UTR/Transaction ID',
+      color: colors.success,
+      onPress: () => router.push('/admin/payment-verification'),
+    },
+    {
       icon: 'credit-card' as const,
       label: 'Payment & QR / UPI Settings',
       sub: 'Update UPI ID, QR code, payment instructions',

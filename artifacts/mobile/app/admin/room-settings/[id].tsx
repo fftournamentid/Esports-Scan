@@ -328,16 +328,10 @@ export default function RoomSettingsScreen() {
                       <Feather name="shield" size={11} color={colors.mutedForeground} />
                       <Text style={[styles.playerDetail, { color: colors.mutedForeground }]}>UID: {j.uid}</Text>
                     </View>
-                    {j.transactionId ? (
-                      <View style={styles.playerDetailRow}>
-                        <Feather name="hash" size={11} color={colors.mutedForeground} />
-                        <Text style={[styles.playerDetail, { color: colors.mutedForeground }]}>Txn: {j.transactionId}</Text>
-                      </View>
-                    ) : null}
                     <View style={styles.playerDetailRow}>
-                      <Feather name="image" size={11} color={j.hasScreenshot ? colors.success : colors.border} />
-                      <Text style={[styles.playerDetail, { color: j.hasScreenshot ? colors.success : colors.border }]}>
-                        Screenshot: {j.hasScreenshot ? 'Received ✓' : 'Not uploaded'}
+                      <Feather name="hash" size={11} color={colors.primary} />
+                      <Text style={[styles.playerDetail, { color: j.transactionId ? colors.foreground : colors.destructive, fontWeight: j.transactionId ? '600' : '400' }]}>
+                        UTR: {j.transactionId || 'Not provided'}
                       </Text>
                     </View>
                     <Text style={[styles.joinedAt, { color: colors.border }]}>

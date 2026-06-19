@@ -30,9 +30,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 const HOW_TO_JOIN_ITEMS = [
   'Player Name (auto-filled from your profile)',
   'Free Fire UID (auto-filled from your profile)',
-  'Tournament Name',
-  'UTR Number (Transaction ID)',
-  'Payment Screenshot',
+  'UTR / Transaction ID (required after payment)',
 ];
 
 export default function TournamentDetailScreen() {
@@ -80,7 +78,7 @@ export default function TournamentDetailScreen() {
     ? getNextDailyOccurrenceIST(t.time).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
     : t.date;
 
-  const handleJoinWhatsApp = async () => {
+  const handleSubmitRegistration = async () => {
     if (!firebaseUser) {
       Alert.alert(
         'Sign In Required',
@@ -114,22 +112,6 @@ export default function TournamentDetailScreen() {
         tournamentDate: t.date,
       });
 
-      const msg = [
-        `*🎮 Free Fire Tournament Registration*`,
-        ``,
-        `Tournament: ${t.name}`,
-        `Date: ${t.repeatDaily ? 'Daily' : formatDateDisplay(t.date)}`,
-        `Time: ${formatTimeIST(t.time)} IST`,
-        `Category: ${t.category}`,
-        ``,
-        `Player Name: ${playerName}`,
-        `Free Fire UID: ${freeFireUid || '[Enter UID]'}`,
-        `UTR Number: ${transactionId.trim()}`,
-        `Payment Screenshot: [Attach screenshot]`,
-        ``,
-        `Please verify and approve my entry. Thank you! 🙏`,
-      ].join('\n');
-
       try {
         const granted = await requestNotificationPermission();
         if (granted) {
@@ -140,13 +122,21 @@ export default function TournamentDetailScreen() {
         }
       } catch {
       }
-
-      Linking.openURL(`https://wa.me/${paymentSettings.whatsappNumber}?text=${encodeURIComponent(msg)}`);
     } catch (err: unknown) {
       Alert.alert('Error', (err as Error).message ?? 'Could not register. Please try again.');
     } finally {
       setJoining(false);
     }
+  };
+
+  const handleOpenWhatsAppSupport = () => {
+    const waNumber = paymentSettings.whatsappNumber.replace(/\D/g, '');
+    if (!waNumber) {
+      Alert.alert('Unavailable', 'WhatsApp support is not configured yet.');
+      return;
+    }
+    const msg = `Hi, I need help with the tournament: ${t.name}`;
+    Linking.openURL(`https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`);
   };
 
   return (
@@ -265,16 +255,16 @@ export default function TournamentDetailScreen() {
           <>
             <View style={styles.howToCard}>
               <View style={styles.howToHeader}>
-                <Feather name="message-circle" size={20} color="#25D366" />
-                <Text style={styles.howToTitle}>How To Join</Text>
+                <Feather name="check-circle" size={20} color={colors.primary} />
+                <Text style={[styles.howToTitle, { color: colors.primary }]}>How To Register</Text>
               </View>
               <Text style={styles.howToSubtitle}>
-                Send the following details on WhatsApp to register:
+                Pay the entry fee, then enter your UTR/Transaction ID below and submit.
               </Text>
               <View style={styles.howToList}>
                 {HOW_TO_JOIN_ITEMS.map((item, i) => (
                   <View key={i} style={styles.howToItem}>
-                    <View style={styles.howToBullet} />
+                    <View style={[styles.howToBullet, { backgroundColor: colors.primary }]} />
                     <Text style={styles.howToText}>{item}</Text>
                   </View>
                 ))}
@@ -321,18 +311,27 @@ export default function TournamentDetailScreen() {
                 </View>
 
                 <TouchableOpacity
-                  style={[styles.waButton, { opacity: joining ? 0.7 : 1 }]}
-                  onPress={handleJoinWhatsApp}
+                  style={[styles.registerBtn, { opacity: joining ? 0.7 : 1, backgroundColor: colors.primary }]}
+                  onPress={handleSubmitRegistration}
                   disabled={joining}
                   activeOpacity={0.85}
                 >
                   {joining
                     ? <ActivityIndicator size="small" color="#FFFFFF" />
-                    : <Feather name="message-circle" size={22} color="#FFFFFF" />
+                    : <Feather name="check-circle" size={22} color="#FFFFFF" />
                   }
-                  <Text style={styles.waButtonText}>
-                    {joining ? 'REGISTERING...' : 'JOIN ON WHATSAPP'}
+                  <Text style={styles.registerBtnText}>
+                    {joining ? 'REGISTERING...' : 'SUBMIT REGISTRATION'}
                   </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.waSupportBtn}
+                  onPress={handleOpenWhatsAppSupport}
+                  activeOpacity={0.85}
+                >
+                  <Feather name="message-circle" size={16} color="#25D366" />
+                  <Text style={styles.waSupportBtnText}>WhatsApp Support</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -435,15 +434,15 @@ const styles = StyleSheet.create({
   rowGap: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionTitle: { fontSize: 14, fontWeight: '700' },
   howToCard: {
-    borderRadius: 14, borderWidth: 1.5, borderColor: '#25D366' + '88',
-    backgroundColor: '#071A0E', padding: 18, gap: 12,
+    borderRadius: 14, borderWidth: 1.5, borderColor: '#FF6B0088',
+    backgroundColor: '#1A0E00', padding: 18, gap: 12,
   },
   howToHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  howToTitle: { fontSize: 17, fontWeight: '800', color: '#25D366' },
+  howToTitle: { fontSize: 17, fontWeight: '800' },
   howToSubtitle: { fontSize: 13, color: '#CCCCCC', lineHeight: 20 },
   howToList: { gap: 10 },
   howToItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  howToBullet: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#25D366' },
+  howToBullet: { width: 7, height: 7, borderRadius: 4 },
   howToText: { fontSize: 14, fontWeight: '500', color: '#EEEEEE' },
   loginPrompt: {
     flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5,
@@ -461,17 +460,22 @@ const styles = StyleSheet.create({
   },
   txnInput: { flex: 1, fontSize: 15, letterSpacing: 0.5 },
   txnHint: { fontSize: 11, lineHeight: 16 },
-  waButton: {
+  registerBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 10, paddingVertical: 18, borderRadius: 14,
-    backgroundColor: '#25D366',
-    shadowColor: '#25D366',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
-    shadowRadius: 14,
-    elevation: 10,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  waButtonText: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1.5 },
+  registerBtnText: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1.5 },
+  waSupportBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 12, borderRadius: 12,
+    borderWidth: 1, borderColor: '#25D36644',
+    backgroundColor: '#25D36611',
+  },
+  waSupportBtnText: { fontSize: 14, fontWeight: '600', color: '#25D366' },
   joinedCard: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 12, padding: 14 },
   joinedTextGroup: { flex: 1 },
   joinedTitle: { fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },

@@ -5,6 +5,7 @@ import {
   getDocs,
   increment,
   onSnapshot,
+  orderBy,
   query,
   serverTimestamp,
   updateDoc,
@@ -95,6 +96,22 @@ export async function updateRegistrationStatus(
   status: JoinStatus,
 ): Promise<void> {
   await updateDoc(doc(db, COL.registrations, registrationId), { status });
+}
+
+export function subscribeAllRegistrations(
+  cb: (regs: JoinedTournament[]) => void,
+): () => void {
+  const q = query(collection(db, COL.registrations), orderBy('joinedAt', 'desc'));
+  return onSnapshot(
+    q,
+    (snap) => {
+      cb(snap.docs.map((d) => docToJoin(d.id, d.data() as Record<string, unknown>)));
+    },
+    (err) => {
+      console.warn('[AllRegistrations] Firestore error:', err.message);
+      cb([]);
+    },
+  );
 }
 
 export function subscribeUserWinners(
