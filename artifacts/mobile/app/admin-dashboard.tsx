@@ -22,20 +22,29 @@ import { formatDateDisplay, formatTimeIST, parseISTDateTime } from '@/utils/time
 function getRoomStatusLabel(t: Tournament): { label: string; color: string } | null {
   if (!t.roomId || !t.roomPassword) return null;
   if (t.roomReleaseTime) {
-    const relTime = new Date(t.roomReleaseTime).toLocaleTimeString('en-IN', {
-      hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata',
-    });
-    return { label: `Released ${relTime.toUpperCase()}`, color: 'success' };
+    try {
+      const relTime = new Date(t.roomReleaseTime).toLocaleTimeString('en-IN', {
+        hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata',
+      });
+      return { label: `Released ${relTime.toUpperCase()}`, color: 'success' };
+    } catch {
+      return { label: 'Released', color: 'success' };
+    }
   }
   // Has room but not released yet — compute release time
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-  const matchDate = t.repeatDaily ? today : t.date;
+  const matchDate = (t.repeatDaily ? today : t.date) || today;
+  if (!t.time) return { label: 'Release Pending', color: 'live' };
   const releaseMs = parseISTDateTime(matchDate, t.time).getTime() - 30 * 60 * 1000;
-  if (Date.now() >= releaseMs) return { label: 'Release Pending', color: 'live' };
-  const releaseTime = new Date(releaseMs).toLocaleTimeString('en-IN', {
-    hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata',
-  });
-  return { label: `Auto-Release ${releaseTime.toUpperCase()}`, color: 'primary' };
+  if (!isFinite(releaseMs) || Date.now() >= releaseMs) return { label: 'Release Pending', color: 'live' };
+  try {
+    const releaseTime = new Date(releaseMs).toLocaleTimeString('en-IN', {
+      hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata',
+    });
+    return { label: `Auto-Release ${releaseTime.toUpperCase()}`, color: 'primary' };
+  } catch {
+    return { label: 'Auto-Release Scheduled', color: 'primary' };
+  }
 }
 
 function getCancelledCountdown(cancelledAt: string): string {

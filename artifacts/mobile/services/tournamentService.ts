@@ -27,14 +27,36 @@ function toISO(val: unknown): string | undefined {
   return undefined;
 }
 
+const VALID_STATUSES = new Set(['upcoming', 'live', 'completed', 'closed', 'cancelled']);
+
 function docToTournament(id: string, data: Record<string, unknown>): Tournament {
+  // Default every required field so a partial/malformed Firestore doc never
+  // propagates undefined into the UI (which throws on .split(), destructuring, etc.)
+  const rawStatus = data.status as string | undefined;
   return {
-    ...(data as Omit<Tournament, 'id'>),
-    id,
+    name: (data.name as string) ?? '(Untitled)',
+    category: (data.category as string) ?? 'Solo',
+    entryFee: typeof data.entryFee === 'number' ? data.entryFee : 0,
+    perKillPrize: typeof data.perKillPrize === 'number' ? data.perKillPrize : 0,
+    booyahPrize: typeof data.booyahPrize === 'number' ? data.booyahPrize : 0,
+    date: (data.date as string) ?? '',
+    time: (data.time as string) ?? '00:00',
+    slots: typeof data.slots === 'number' ? data.slots : 0,
+    slotsUsed: typeof data.slotsUsed === 'number' ? data.slotsUsed : 0,
+    status: (VALID_STATUSES.has(rawStatus ?? '') ? rawStatus : 'upcoming') as Tournament['status'],
+    repeatDaily: typeof data.repeatDaily === 'boolean' ? data.repeatDaily : false,
+    published: typeof data.published === 'boolean' ? data.published : false,
+    roomId: data.roomId as string | undefined,
+    roomPassword: data.roomPassword as string | undefined,
+    roomAutoReleased: data.roomAutoReleased as boolean | undefined,
+    gameMode: data.gameMode as string | undefined,
+    rules: data.rules as string | undefined,
+    results: data.results as Tournament['results'],
     roomReleaseTime: toISO(data.roomReleaseTime),
     cancelledAt: toISO(data.cancelledAt),
     createdAt: toISO(data.createdAt),
-  } as Tournament;
+    id,
+  };
 }
 
 export function subscribeTournaments(

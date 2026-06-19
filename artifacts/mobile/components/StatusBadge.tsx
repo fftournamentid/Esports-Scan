@@ -23,11 +23,13 @@ interface TournamentBadgeProps { type: 'tournament'; status: TournamentStatus }
 interface JoinBadgeProps { type: 'join'; status: JoinStatus }
 type Props = TournamentBadgeProps | JoinBadgeProps;
 
+const FALLBACK = { label: 'UNKNOWN', color: '#8888AA' };
+
 export default function StatusBadge(props: Props) {
   const colors = useColors();
-  const { label, color } = props.type === 'tournament'
-    ? TOURNAMENT_STATUS[props.status]
-    : JOIN_STATUS[props.status];
+  const { label, color } = (props.type === 'tournament'
+    ? (TOURNAMENT_STATUS[props.status] ?? FALLBACK)
+    : (JOIN_STATUS[props.status] ?? FALLBACK));
 
   return (
     <View style={[styles.badge, { backgroundColor: color + '22', borderColor: color + '66' }]}>

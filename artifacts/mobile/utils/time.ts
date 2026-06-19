@@ -7,7 +7,8 @@
  * Converts a 24-hour "HH:MM" string to 12-hour format with AM/PM.
  * e.g. "14:00" → "2:00 PM", "18:00" → "6:00 PM", "23:00" → "11:00 PM"
  */
-export function formatTimeIST(time: string): string {
+export function formatTimeIST(time: string | null | undefined): string {
+  if (!time) return '--:--';
   const parts = time.split(':');
   if (parts.length < 2) return time;
   let hours = parseInt(parts[0], 10);
