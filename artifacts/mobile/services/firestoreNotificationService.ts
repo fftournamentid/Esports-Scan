@@ -22,11 +22,22 @@ function docToNotif(id: string, data: Record<string, unknown>): AppNotification 
   } as AppNotification;
 }
 
-export function subscribeNotifications(cb: (notifs: AppNotification[]) => void): () => void {
+export function subscribeNotifications(
+  cb: (notifs: AppNotification[]) => void,
+  onError?: (err: Error) => void,
+): () => void {
   const q = query(collection(db, COL), orderBy('createdAt', 'desc'));
-  return onSnapshot(q, (snap) => {
-    cb(snap.docs.map((d) => docToNotif(d.id, d.data() as Record<string, unknown>)));
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      cb(snap.docs.map((d) => docToNotif(d.id, d.data() as Record<string, unknown>)));
+    },
+    (err) => {
+      console.warn('[Notifications] Firestore error:', err.message);
+      onError?.(err);
+      cb([]);
+    },
+  );
 }
 
 export async function sendNotification(

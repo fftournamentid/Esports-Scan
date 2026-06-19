@@ -37,10 +37,22 @@ function docToTournament(id: string, data: Record<string, unknown>): Tournament 
   } as Tournament;
 }
 
-export function subscribeTournaments(cb: (ts: Tournament[]) => void): () => void {
-  return onSnapshot(collection(db, COL.tournaments), (snap) => {
-    cb(snap.docs.map((d) => docToTournament(d.id, d.data() as Record<string, unknown>)));
-  });
+export function subscribeTournaments(
+  cb: (ts: Tournament[]) => void,
+  onError?: (err: Error) => void,
+): () => void {
+  return onSnapshot(
+    collection(db, COL.tournaments),
+    (snap) => {
+      cb(snap.docs.map((d) => docToTournament(d.id, d.data() as Record<string, unknown>)));
+    },
+    (err) => {
+      console.warn('[Tournaments] Firestore error:', err.message);
+      onError?.(err);
+      // Always call cb with empty array so isLoading resolves and app doesn't freeze
+      cb([]);
+    },
+  );
 }
 
 export async function createTournament(data: Omit<Tournament, 'id' | 'slotsUsed'>): Promise<string> {
@@ -73,22 +85,29 @@ export async function restoreTournament(id: string): Promise<void> {
 
 export function subscribeWinners(cb: (ws: RecentWinner[]) => void): () => void {
   const TTL = 72 * 60 * 60 * 1000;
-  return onSnapshot(collection(db, COL.winners), (snap) => {
-    const now = Date.now();
-    const winners: RecentWinner[] = snap.docs
-      .map((d) => {
-        const data = d.data();
-        return {
-          ...data,
-          id: d.id,
-          publishedAt: data.publishedAt instanceof Timestamp
-            ? data.publishedAt.toDate().toISOString()
-            : (data.publishedAt as string) ?? new Date().toISOString(),
-        } as RecentWinner;
-      })
-      .filter((w) => now - new Date(w.publishedAt).getTime() < TTL);
-    cb(winners);
-  });
+  return onSnapshot(
+    collection(db, COL.winners),
+    (snap) => {
+      const now = Date.now();
+      const winners: RecentWinner[] = snap.docs
+        .map((d) => {
+          const data = d.data();
+          return {
+            ...data,
+            id: d.id,
+            publishedAt: data.publishedAt instanceof Timestamp
+              ? data.publishedAt.toDate().toISOString()
+              : (data.publishedAt as string) ?? new Date().toISOString(),
+          } as RecentWinner;
+        })
+        .filter((w) => now - new Date(w.publishedAt).getTime() < TTL);
+      cb(winners);
+    },
+    (err) => {
+      console.warn('[Winners] Firestore error:', err.message);
+      cb([]);
+    },
+  );
 }
 
 export async function publishWinners(
@@ -123,17 +142,46 @@ const DEFAULT_PAYMENT: PaymentSettings = {
   whatsappNumber: '917488765246',
 };
 
+/**
+ * Merges partial payment data from Firestore with DEFAULT_PAYMENT so that
+ * missing or undefined fields always fall back to safe defaults.
+ */
+function mergePayment(raw: unknown): PaymentSettings {
+  if (!raw || typeof raw !== 'object') return DEFAULT_PAYMENT;
+  const p = raw as Partial<PaymentSettings>;
+  return {
+    upiId: typeof p.upiId === 'string' && p.upiId.trim()
+      ? p.upiId.trim()
+      : DEFAULT_PAYMENT.upiId,
+    instructions: Array.isArray(p.instructions) && p.instructions.length > 0
+      ? p.instructions
+      : DEFAULT_PAYMENT.instructions,
+    whatsappNumber: typeof p.whatsappNumber === 'string' && p.whatsappNumber.trim()
+      ? p.whatsappNumber.trim()
+      : DEFAULT_PAYMENT.whatsappNumber,
+  };
+}
+
 export function subscribeAppSettings(
   cb: (data: { payment: PaymentSettings }) => void,
 ): () => void {
-  return onSnapshot(doc(db, COL.settings, 'app'), (snap) => {
-    if (snap.exists()) {
-      const data = snap.data() as { payment?: PaymentSettings };
-      cb({ payment: data.payment ?? DEFAULT_PAYMENT });
-    } else {
+  return onSnapshot(
+    doc(db, COL.settings, 'app'),
+    (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as { payment?: unknown };
+        cb({ payment: mergePayment(data.payment) });
+      } else {
+        // Document does not exist — use fallback silently (no crash, no collection created)
+        cb({ payment: DEFAULT_PAYMENT });
+      }
+    },
+    (err) => {
+      // Firestore error (permission-denied, network, etc.) — log and fall back silently
+      console.warn('[AppSettings] Firestore error, using defaults:', err.message);
       cb({ payment: DEFAULT_PAYMENT });
-    }
-  });
+    },
+  );
 }
 
 export async function updateAppSettings(

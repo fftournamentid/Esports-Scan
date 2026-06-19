@@ -96,12 +96,18 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     const unsubs: (() => void)[] = [];
 
-    const unsubT = subscribeTournaments((ts) => {
-      setTournaments(ts);
-      setIsLoading(false);
-      // Clear pending timer updates when fresh data arrives so future triggers can run
-      pendingTimerUpdates.current.clear();
-    });
+    const unsubT = subscribeTournaments(
+      (ts) => {
+        setTournaments(ts);
+        setIsLoading(false);
+        pendingTimerUpdates.current.clear();
+      },
+      (err) => {
+        // Even on error, stop the loading state so the app doesn't freeze
+        console.warn('[TournamentContext] Tournaments subscription error:', err.message);
+        setIsLoading(false);
+      },
+    );
     unsubs.push(unsubT);
 
     const unsubW = subscribeWinners(setRecentWinners);
