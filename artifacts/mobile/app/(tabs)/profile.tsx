@@ -35,8 +35,7 @@ export default function ProfileScreen() {
           onPress: async () => {
             setLoggingOut(true);
             await logout();
-            // logout() clears firebaseUser to null synchronously.
-            // AuthGate sees null → <Redirect href="/auth/login" /> — no race.
+            // logout() calls signOut then router.replace('/auth/login')
           },
         },
       ],

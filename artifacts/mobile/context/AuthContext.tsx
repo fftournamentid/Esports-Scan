@@ -1,4 +1,5 @@
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
+import { useRouter } from 'expo-router';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { UserProfile } from '@/types';
 import { ensureUserProfile, getUserProfile } from '@/services/authService';
@@ -24,6 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const router = useRouter();
 
   async function loadProfile(user: FirebaseUser): Promise<void> {
     try {
@@ -40,12 +42,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      console.log('[AuthContext] onAuthStateChanged fired, user:', user?.uid ?? null);
       if (!user) {
         setFirebaseUser(null);
         setUserProfile(null);
         setAuthLoading(false);
-        console.log('[AuthContext] state cleared — firebaseUser=null');
         return;
       }
       setAuthLoading(true);
@@ -62,15 +62,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    console.log('[AuthContext] logout() called — clearing state now');
     setFirebaseUser(null);
     setUserProfile(null);
-    try {
-      await signOut(auth);
-      console.log('[AuthContext] signOut(auth) resolved OK');
-    } catch (e) {
-      console.log('[AuthContext] signOut(auth) ERROR:', e);
-    }
+    await signOut(auth);
+    router.replace('/auth/login' as never);
   };
 
   return (
