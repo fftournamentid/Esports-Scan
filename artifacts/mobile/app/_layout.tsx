@@ -6,7 +6,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Redirect, Stack, useSegments } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import "@/utils/notifications";
@@ -22,7 +22,6 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-// Routes where admin is allowed to be (other than admin/* and admin-dashboard)
 const ADMIN_PASSTHROUGH = new Set([
   'tournament', 'room', 'results', 'payment', 'join', 'notifications', '+not-found',
 ]);
@@ -30,37 +29,41 @@ const ADMIN_PASSTHROUGH = new Set([
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { firebaseUser, userProfile, authLoading } = useAuth();
   const segments = useSegments();
+  const router = useRouter();
 
-  // While auth state is being determined, render nothing (splash is still showing)
+  useEffect(() => {
+    if (authLoading) return;
+
+    const firstSegment = segments[0] as string | undefined;
+    const inAuthGroup = firstSegment === "auth";
+    const inAdminGroup = firstSegment === "admin" || firstSegment === "admin-dashboard";
+    const isAdmin = userProfile?.role === "admin";
+
+    console.log('[AuthGate] effect — firebaseUser:', firebaseUser?.uid ?? null, '| segment:', firstSegment, '| isAdmin:', isAdmin);
+
+    if (!firebaseUser) {
+      if (!inAuthGroup) {
+        console.log('[AuthGate] no user, not in auth group → replace /auth/login');
+        router.replace('/auth/login' as never);
+      }
+      return;
+    }
+
+    if (isAdmin) {
+      if (!inAdminGroup && !ADMIN_PASSTHROUGH.has(firstSegment ?? "")) {
+        console.log('[AuthGate] admin outside admin area → replace /admin-dashboard');
+        router.replace('/admin-dashboard' as never);
+      }
+      return;
+    }
+
+    if (inAuthGroup || inAdminGroup) {
+      console.log('[AuthGate] regular user on auth/admin route → replace /');
+      router.replace('/' as never);
+    }
+  }, [firebaseUser, userProfile, authLoading, segments]);
+
   if (authLoading) return null;
-
-  const firstSegment = segments[0] as string | undefined;
-  const inAuthGroup = firstSegment === "auth";
-  const inAdminGroup = firstSegment === "admin" || firstSegment === "admin-dashboard";
-  const isAdmin = userProfile?.role === "admin";
-
-  // ── Not logged in ─────────────────────────────────────────────────────────
-  if (!firebaseUser) {
-    if (!inAuthGroup) {
-      return <Redirect href="/auth/login" />;
-    }
-    return <>{children}</>;
-  }
-
-  // ── Admin user ─────────────────────────────────────────────────────────────
-  if (isAdmin) {
-    // Admin must stay in admin area unless on a passthrough detail route
-    if (!inAdminGroup && !ADMIN_PASSTHROUGH.has(firstSegment ?? "")) {
-      return <Redirect href="/admin-dashboard" />;
-    }
-    return <>{children}</>;
-  }
-
-  // ── Regular user ───────────────────────────────────────────────────────────
-  // Block access to auth and admin routes
-  if (inAuthGroup || inAdminGroup) {
-    return <Redirect href="/" />;
-  }
 
   return <>{children}</>;
 }

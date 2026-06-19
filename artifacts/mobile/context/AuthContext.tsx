@@ -40,10 +40,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
+      console.log('[AuthContext] onAuthStateChanged fired, user:', user?.uid ?? null);
       if (!user) {
         setFirebaseUser(null);
         setUserProfile(null);
         setAuthLoading(false);
+        console.log('[AuthContext] state cleared — firebaseUser=null');
         return;
       }
       setAuthLoading(true);
@@ -60,12 +62,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    console.log('[AuthContext] logout() called — clearing state now');
     setFirebaseUser(null);
     setUserProfile(null);
     try {
       await signOut(auth);
-    } catch {
-      // signOut rarely fails; state already cleared so UX is unaffected
+      console.log('[AuthContext] signOut(auth) resolved OK');
+    } catch (e) {
+      console.log('[AuthContext] signOut(auth) ERROR:', e);
     }
   };
 
