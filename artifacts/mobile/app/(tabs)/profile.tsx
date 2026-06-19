@@ -120,6 +120,16 @@ export default function ProfileScreen() {
           ))}
         </View>
 
+        {/* Edit Profile Button */}
+        <TouchableOpacity
+          style={[styles.editBtn, { backgroundColor: colors.card, borderColor: colors.primary + '55' }]}
+          onPress={() => router.push('/edit-profile' as never)}
+          activeOpacity={0.8}
+        >
+          <Feather name="edit-2" size={18} color={colors.primary} />
+          <Text style={[styles.editBtnText, { color: colors.primary }]}>Edit Profile</Text>
+        </TouchableOpacity>
+
         {/* Share App Button */}
         <TouchableOpacity
           style={[styles.shareBtn, { backgroundColor: colors.card, borderColor: colors.accent + '55' }]}
@@ -184,6 +194,12 @@ const styles = StyleSheet.create({
   infoLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   infoLabel: { fontSize: 13 },
   infoValue: { fontSize: 13, fontWeight: '600', maxWidth: '55%', textAlign: 'right' },
+
+  editBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 10, paddingVertical: 16, borderRadius: 14, borderWidth: 1,
+  },
+  editBtnText: { fontSize: 15, fontWeight: '700' },
 
   shareBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

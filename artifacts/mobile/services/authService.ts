@@ -6,7 +6,7 @@ import {
   signOut,
   updateProfile,
 } from 'firebase/auth';
-import { Timestamp, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { Timestamp, doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/types';
 import { auth, db } from './firebase';
 
@@ -54,6 +54,13 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
       ? data.createdAt.toDate().toISOString()
       : (data.createdAt as string | undefined),
   };
+}
+
+export async function updateUserProfile(
+  uid: string,
+  data: { name: string; freeFireUid: string },
+): Promise<void> {
+  await updateDoc(doc(db, 'users', uid), data);
 }
 
 export async function ensureUserProfile(user: FirebaseUser): Promise<void> {
