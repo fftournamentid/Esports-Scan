@@ -3,6 +3,7 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   onSnapshot,
   serverTimestamp,
@@ -52,11 +53,22 @@ export async function createTournament(data: Omit<Tournament, 'id' | 'slotsUsed'
 }
 
 export async function updateTournament(id: string, data: Partial<Tournament>): Promise<void> {
-  await updateDoc(doc(db, COL.tournaments, id), data as Record<string, unknown>);
+  const payload: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    payload[k] = v === undefined ? deleteField() : v;
+  }
+  await updateDoc(doc(db, COL.tournaments, id), payload);
 }
 
 export async function deleteTournament(id: string): Promise<void> {
   await deleteDoc(doc(db, COL.tournaments, id));
+}
+
+export async function restoreTournament(id: string): Promise<void> {
+  await updateDoc(doc(db, COL.tournaments, id), {
+    status: 'upcoming',
+    cancelledAt: deleteField(),
+  });
 }
 
 export function subscribeWinners(cb: (ws: RecentWinner[]) => void): () => void {

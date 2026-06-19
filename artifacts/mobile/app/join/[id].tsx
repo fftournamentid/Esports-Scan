@@ -14,14 +14,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTournament } from '@/context/TournamentContext';
 import { useColors } from '@/hooks/useColors';
 
-const WHATSAPP_NUMBER = '917488765248';
-
 export default function JoinFormScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getTournamentById } = useTournament();
+  const { getTournamentById, paymentSettings } = useTournament();
 
   const t = getTournamentById(id ?? '');
   const topPadding = Platform.OS === 'web' ? 67 : insets.top;
@@ -41,7 +39,7 @@ export default function JoinFormScreen() {
       `Please verify and approve my entry. Thank you!`,
     ].join('\n');
 
-    Linking.openURL(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`);
+    Linking.openURL(`https://wa.me/${paymentSettings.whatsappNumber}?text=${encodeURIComponent(msg)}`);
   };
 
   if (!t) {
@@ -76,7 +74,6 @@ export default function JoinFormScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: Platform.OS === 'web' ? 40 : insets.bottom + 24 }]}
       >
-        {/* Tournament info card */}
         <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.primary + '44' }]}>
           <Text style={[styles.tourneyName, { color: colors.foreground }]}>{t.name}</Text>
           <View style={styles.infoRow}>
@@ -85,7 +82,6 @@ export default function JoinFormScreen() {
           </View>
         </View>
 
-        {/* Instructions box */}
         <View style={[styles.instructionBox, { backgroundColor: '#0A2E1A', borderColor: '#25D366' + '66' }]}>
           <View style={styles.instructionHeader}>
             <Feather name="message-circle" size={18} color="#25D366" />
@@ -110,7 +106,6 @@ export default function JoinFormScreen() {
           </View>
         </View>
 
-        {/* WhatsApp button */}
         <TouchableOpacity
           style={styles.waButton}
           onPress={openWhatsApp}

@@ -2,48 +2,56 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Tournaments — public read so players can browse without logging in.
-    // Writes allowed for authenticated users (admin must be signed into Firebase).
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
     match /tournaments/{id} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
-    // Registrations — only authenticated users can read/write.
-    // A user can read their own registrations; any authenticated user can update
-    // (admin approves/rejects registrations while signed in as a Firebase user).
     match /registrations/{id} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
-    // Winners — public read (leaderboard visible to all).
-    // Write requires authentication (admin publishes results while signed in).
     match /winners/{id} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
-    // App settings — public read so payment UPI/instructions show without login.
-    // Write requires authentication (admin changes settings while signed in).
     match /settings/{id} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
-    // User profiles — each user can only read and write their own document.
     match /users/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow create: if request.auth != null && request.auth.uid == uid;
-      allow update: if request.auth != null && request.auth.uid == uid;
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid) || isAdmin();
     }
 
-    // Notifications — authenticated users can read, admin can write.
     match /notifications/{id} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /match_results/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
   }
 }

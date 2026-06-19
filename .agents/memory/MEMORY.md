@@ -1,0 +1,1 @@
+- [Free Fire Tournament Hub](fftournamentapp.md) — Expo Router + Firebase Auth + Firestore; project ID fftournamentid-4185d; admin role enforced via Firestore `get()` in rules, not custom claims.

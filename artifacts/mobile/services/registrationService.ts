@@ -1,14 +1,15 @@
 import {
   Timestamp,
-  addDoc,
   collection,
   doc,
+  getDocs,
   increment,
   onSnapshot,
   query,
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import type { JoinedTournament, JoinStatus, RecentWinner } from '@/types';
 import { db } from './firebase';
@@ -62,15 +63,31 @@ export function subscribeTournamentRegistrations(
 export async function createRegistration(
   data: Omit<JoinedTournament, 'id' | 'status' | 'joinedAt'>,
 ): Promise<string> {
-  const ref = await addDoc(collection(db, COL.registrations), {
+  // Duplicate check before writing
+  const dupQ = query(
+    collection(db, COL.registrations),
+    where('userId', '==', data.userId),
+    where('tournamentId', '==', data.tournamentId),
+    where('tournamentDate', '==', data.tournamentDate),
+  );
+  const existing = await getDocs(dupQ);
+  if (!existing.empty) {
+    throw new Error('You have already registered for this tournament today.');
+  }
+
+  // Atomic batch: create registration + increment slotsUsed together
+  const batch = writeBatch(db);
+  const regRef = doc(collection(db, COL.registrations));
+  batch.set(regRef, {
     ...data,
     status: 'pending',
     joinedAt: serverTimestamp(),
   });
-  await updateDoc(doc(db, COL.tournaments, data.tournamentId), {
+  batch.update(doc(db, COL.tournaments, data.tournamentId), {
     slotsUsed: increment(1),
   });
-  return ref.id;
+  await batch.commit();
+  return regRef.id;
 }
 
 export async function updateRegistrationStatus(

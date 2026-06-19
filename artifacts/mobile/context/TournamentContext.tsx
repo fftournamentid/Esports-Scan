@@ -5,6 +5,7 @@ import {
   createTournament,
   deleteTournament as fsDeleteTournament,
   publishWinners,
+  restoreTournament as fsRestoreTournament,
   subscribeAppSettings,
   subscribeTournaments,
   subscribeWinners,
@@ -84,7 +85,12 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
   const [registrationsError, setRegistrationsError] = useState<string | null>(null);
 
   const regUnsubRef = useRef<(() => void) | null>(null);
+  // '__UNSET__' sentinel ensures the first onAuthStateChanged call always runs
+  const currentUserIdRef = useRef<string | null>('__UNSET__');
   const tournamentsRef = useRef<Tournament[]>([]);
+  // Track which tournament IDs have a pending timer update to prevent duplicate writes
+  const pendingTimerUpdates = useRef<Set<string>>(new Set());
+
   useEffect(() => { tournamentsRef.current = tournaments; }, [tournaments]);
 
   useEffect(() => {
@@ -93,6 +99,8 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
     const unsubT = subscribeTournaments((ts) => {
       setTournaments(ts);
       setIsLoading(false);
+      // Clear pending timer updates when fresh data arrives so future triggers can run
+      pendingTimerUpdates.current.clear();
     });
     unsubs.push(unsubT);
 
@@ -105,11 +113,18 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
     unsubs.push(unsubSettings);
 
     const unsubAuth = onAuthStateChanged(auth, (user) => {
+      const newUserId = user?.uid ?? null;
+
+      // Skip if same user — avoids reload loop on repeated auth state fires
+      if (newUserId === currentUserIdRef.current) return;
+      currentUserIdRef.current = newUserId;
+
       if (regUnsubRef.current) {
         regUnsubRef.current();
         regUnsubRef.current = null;
       }
       setRegistrationsError(null);
+
       if (user) {
         setRegistrationsLoading(true);
         regUnsubRef.current = subscribeUserRegistrations(
@@ -136,6 +151,7 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
     };
   }, []);
 
+  // Auto-status timer: runs every 60s, guarded against duplicate writes
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
@@ -148,10 +164,21 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
           const [h, m] = t.time.split(':').map(Number);
           const [yr, mo, dy] = t.date.split('-').map(Number);
           const matchMs = new Date(yr, mo - 1, dy, h, m).getTime();
-          if (now > matchMs) {
+
+          const closedKey = `${t.id}:closed`;
+          if (now > matchMs && !pendingTimerUpdates.current.has(closedKey)) {
+            pendingTimerUpdates.current.add(closedKey);
             fsUpdateTournament(t.id, { status: 'closed' }).catch(console.error);
           }
-          if (t.roomId && !t.roomAutoReleased && now >= matchMs - 30 * 60 * 1000) {
+
+          const liveKey = `${t.id}:live`;
+          if (
+            t.roomId &&
+            !t.roomAutoReleased &&
+            now >= matchMs - 30 * 60 * 1000 &&
+            !pendingTimerUpdates.current.has(liveKey)
+          ) {
+            pendingTimerUpdates.current.add(liveKey);
             fsUpdateTournament(t.id, {
               status: 'live',
               roomAutoReleased: true,
@@ -206,7 +233,7 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const restoreTournament = useCallback(async (id: string) => {
-    await fsUpdateTournament(id, { status: 'upcoming', cancelledAt: undefined });
+    await fsRestoreTournament(id);
   }, []);
 
   const joinTournament = useCallback(async (
