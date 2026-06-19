@@ -133,22 +133,6 @@ export default function ProfileScreen() {
           <Text style={[styles.shareBtnText, { color: colors.accent }]}>Share App</Text>
         </TouchableOpacity>
 
-        {/* Logout Button */}
-        <TouchableOpacity
-          style={[
-            styles.logoutBtn,
-            { backgroundColor: colors.destructive + '18', borderColor: colors.destructive + '44' },
-            loggingOut && { opacity: 0.6 },
-          ]}
-          onPress={handleLogout}
-          disabled={loggingOut}
-          activeOpacity={0.8}
-        >
-          <Feather name="log-out" size={18} color={colors.destructive} />
-          <Text style={[styles.logoutBtnText, { color: colors.destructive }]}>
-            {loggingOut ? 'Logging out...' : 'Log Out'}
-          </Text>
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );
