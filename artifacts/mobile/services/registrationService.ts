@@ -1,5 +1,6 @@
 import {
   Timestamp,
+  addDoc,
   collection,
   doc,
   getDocs,
@@ -76,19 +77,22 @@ export async function createRegistration(
     throw new Error('You have already registered for this tournament today.');
   }
 
-  // Atomic batch: create registration + increment slotsUsed together
-  const batch = writeBatch(db);
-  const regRef = doc(collection(db, COL.registrations));
-  batch.set(regRef, {
+  const ref = await addDoc(collection(db, COL.registrations), {
     ...data,
     status: 'pending',
     joinedAt: serverTimestamp(),
   });
-  batch.update(doc(db, COL.tournaments, data.tournamentId), {
-    slotsUsed: increment(1),
-  });
+  return ref.id;
+}
+
+export async function approveRegistration(
+  registrationId: string,
+  tournamentId: string,
+): Promise<void> {
+  const batch = writeBatch(db);
+  batch.update(doc(db, COL.registrations, registrationId), { status: 'approved' });
+  batch.update(doc(db, COL.tournaments, tournamentId), { slotsUsed: increment(1) });
   await batch.commit();
-  return regRef.id;
 }
 
 export async function updateRegistrationStatus(

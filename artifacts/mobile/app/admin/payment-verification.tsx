@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { JoinedTournament, JoinStatus } from '@/types';
 import {
+  approveRegistration,
   subscribeAllRegistrations,
   updateRegistrationStatus,
 } from '@/services/registrationService';
@@ -51,8 +52,8 @@ export default function PaymentVerificationScreen() {
   const approvedCount = registrations.filter(r => r.status === 'approved' || r.status === 'room_released').length;
   const rejectedCount = registrations.filter(r => r.status === 'rejected').length;
 
-  const handleApprove = async (id: string) => {
-    await updateRegistrationStatus(id, 'approved');
+  const handleApprove = async (id: string, tournamentId: string) => {
+    await approveRegistration(id, tournamentId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
@@ -226,7 +227,7 @@ export default function PaymentVerificationScreen() {
                   <View style={styles.actions}>
                     {!isApproved && (
                       <TouchableOpacity
-                        onPress={() => handleApprove(r.id)}
+                        onPress={() => handleApprove(r.id, r.tournamentId)}
                         style={[styles.actionBtn, { backgroundColor: colors.success + '22', borderColor: colors.success + '55' }]}
                       >
                         <Feather name="check" size={13} color={colors.success} />
