@@ -14,13 +14,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
-import { logOut } from '@/services/authService';
 
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { firebaseUser, userProfile } = useAuth();
+  const { firebaseUser, userProfile, logout } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
   const topPadding = Platform.OS === 'web' ? 67 : insets.top;
 
@@ -35,13 +34,9 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             setLoggingOut(true);
-            try {
-              await logOut();
-              router.replace('/auth/login' as never);
-            } catch {
-              setLoggingOut(false);
-              Alert.alert('Error', 'Failed to log out. Please try again.');
-            }
+            await logout();
+            // logout() clears firebaseUser to null synchronously.
+            // AuthGate sees null → <Redirect href="/auth/login" /> — no race.
           },
         },
       ],
