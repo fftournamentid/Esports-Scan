@@ -20,6 +20,9 @@ export interface RecentWinner {
   rank: number;
   booyahWinner?: boolean;
   publishedAt: string;
+  paid?: boolean;
+  paidAt?: string;
+  upiId?: string;
 }
 
 export interface Tournament {
@@ -53,6 +56,7 @@ export interface JoinedTournament {
   userId: string;
   playerName: string;
   uid: string;
+  phoneNumber?: string;
   transactionId: string;
   hasScreenshot: boolean;
   status: JoinStatus;
@@ -75,6 +79,9 @@ export interface PaymentSettings {
   upiId: string;
   instructions: string[];
   whatsappNumber: string;
+  merchantName?: string;
+  supportEmail?: string;
+  telegramLink?: string;
 }
 
 export interface AppNotification {

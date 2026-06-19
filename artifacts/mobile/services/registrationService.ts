@@ -36,13 +36,8 @@ export function subscribeUserRegistrations(
   const q = query(collection(db, COL.registrations), where('userId', '==', userId));
   return onSnapshot(
     q,
-    (snap) => {
-      cb(snap.docs.map((d) => docToJoin(d.id, d.data() as Record<string, unknown>)));
-    },
-    (err) => {
-      console.warn('[Registrations] Firestore error:', err.message);
-      onError?.(err);
-    },
+    (snap) => cb(snap.docs.map((d) => docToJoin(d.id, d.data() as Record<string, unknown>))),
+    (err) => { console.warn('[Registrations] Firestore error:', err.message); onError?.(err); },
   );
 }
 
@@ -53,32 +48,55 @@ export function subscribeTournamentRegistrations(
   const q = query(collection(db, COL.registrations), where('tournamentId', '==', tournamentId));
   return onSnapshot(
     q,
-    (snap) => {
-      cb(snap.docs.map((d) => docToJoin(d.id, d.data() as Record<string, unknown>)));
-    },
-    (err) => {
-      console.warn('[TournamentRegistrations] Firestore error:', err.message);
-    },
+    (snap) => cb(snap.docs.map((d) => docToJoin(d.id, d.data() as Record<string, unknown>))),
+    (err) => { console.warn('[TournamentRegistrations] Firestore error:', err.message); },
   );
 }
 
 export async function createRegistration(
   data: Omit<JoinedTournament, 'id' | 'status' | 'joinedAt'>,
 ): Promise<string> {
-  // Duplicate check before writing
+  // Trim text fields
+  const cleaned = {
+    ...data,
+    playerName: data.playerName?.trim() ?? '',
+    uid: data.uid?.trim() ?? '',
+    transactionId: data.transactionId?.trim() ?? '',
+    phoneNumber: data.phoneNumber?.trim() ?? '',
+    tournamentName: data.tournamentName?.trim() ?? '',
+  };
+
+  // Duplicate registration check (same user + same tournament + same date)
   const dupQ = query(
     collection(db, COL.registrations),
-    where('userId', '==', data.userId),
-    where('tournamentId', '==', data.tournamentId),
-    where('tournamentDate', '==', data.tournamentDate),
+    where('userId', '==', cleaned.userId),
+    where('tournamentId', '==', cleaned.tournamentId),
+    where('tournamentDate', '==', cleaned.tournamentDate),
   );
   const existing = await getDocs(dupQ);
   if (!existing.empty) {
     throw new Error('You have already registered for this tournament today.');
   }
 
+  // UTR duplicate check (global — prevent same transaction ID used twice)
+  if (cleaned.transactionId) {
+    try {
+      const utrQ = query(
+        collection(db, COL.registrations),
+        where('transactionId', '==', cleaned.transactionId),
+      );
+      const utrExisting = await getDocs(utrQ);
+      if (!utrExisting.empty) {
+        throw new Error('This Transaction ID (UTR) has already been used. Please provide a valid UTR.');
+      }
+    } catch (err) {
+      // Re-throw our own duplicate error, swallow index errors
+      if (err instanceof Error && err.message.includes('Transaction ID')) throw err;
+    }
+  }
+
   const ref = await addDoc(collection(db, COL.registrations), {
-    ...data,
+    ...cleaned,
     status: 'pending',
     joinedAt: serverTimestamp(),
   });
@@ -108,13 +126,8 @@ export function subscribeAllRegistrations(
   const q = query(collection(db, COL.registrations), orderBy('joinedAt', 'desc'));
   return onSnapshot(
     q,
-    (snap) => {
-      cb(snap.docs.map((d) => docToJoin(d.id, d.data() as Record<string, unknown>)));
-    },
-    (err) => {
-      console.warn('[AllRegistrations] Firestore error:', err.message);
-      cb([]);
-    },
+    (snap) => cb(snap.docs.map((d) => docToJoin(d.id, d.data() as Record<string, unknown>))),
+    (err) => { console.warn('[AllRegistrations] Firestore error:', err.message); cb([]); },
   );
 }
 
@@ -127,23 +140,17 @@ export function subscribeUserWinners(
   return onSnapshot(
     q,
     (snap) => {
-      cb(
-        snap.docs.map((d) => {
-          const data = d.data();
-          return {
-            ...data,
-            id: d.id,
-            publishedAt:
-              data.publishedAt instanceof Timestamp
-                ? data.publishedAt.toDate().toISOString()
-                : (data.publishedAt as string) ?? new Date().toISOString(),
-          } as RecentWinner;
-        }),
-      );
+      cb(snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          ...data,
+          id: d.id,
+          publishedAt: data.publishedAt instanceof Timestamp
+            ? data.publishedAt.toDate().toISOString()
+            : (data.publishedAt as string) ?? new Date().toISOString(),
+        } as RecentWinner;
+      }));
     },
-    (err) => {
-      console.warn('[UserWinners] Firestore error:', err.message);
-      onError?.(err);
-    },
+    (err) => { console.warn('[UserWinners] Firestore error:', err.message); onError?.(err); },
   );
 }

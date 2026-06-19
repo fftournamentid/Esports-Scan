@@ -40,12 +40,7 @@ const VALID_STATUSES = new Set([
   "cancelled",
 ]);
 
-function docToTournament(
-  id: string,
-  data: Record<string, unknown>,
-): Tournament {
-  // Default every required field so a partial/malformed Firestore doc never
-  // propagates undefined into the UI (which throws on .split(), destructuring, etc.)
+function docToTournament(id: string, data: Record<string, unknown>): Tournament {
   const rawStatus = data.status as string | undefined;
   return {
     name: (data.name as string) ?? "(Untitled)",
@@ -57,11 +52,8 @@ function docToTournament(
     time: (data.time as string) ?? "00:00",
     slots: typeof data.slots === "number" ? data.slots : 0,
     slotsUsed: typeof data.slotsUsed === "number" ? data.slotsUsed : 0,
-    status: (VALID_STATUSES.has(rawStatus ?? "")
-      ? rawStatus
-      : "upcoming") as Tournament["status"],
-    repeatDaily:
-      typeof data.repeatDaily === "boolean" ? data.repeatDaily : false,
+    status: (VALID_STATUSES.has(rawStatus ?? "") ? rawStatus : "upcoming") as Tournament["status"],
+    repeatDaily: typeof data.repeatDaily === "boolean" ? data.repeatDaily : false,
     published: typeof data.published === "boolean" ? data.published : false,
     roomId: data.roomId as string | undefined,
     roomPassword: data.roomPassword as string | undefined,
@@ -83,24 +75,17 @@ export function subscribeTournaments(
   return onSnapshot(
     collection(db, COL.tournaments),
     (snap) => {
-      cb(
-        snap.docs.map((d) =>
-          docToTournament(d.id, d.data() as Record<string, unknown>),
-        ),
-      );
+      cb(snap.docs.map((d) => docToTournament(d.id, d.data() as Record<string, unknown>)));
     },
     (err) => {
       console.warn("[Tournaments] Firestore error:", err.message);
       onError?.(err);
-      // Always call cb with empty array so isLoading resolves and app doesn't freeze
       cb([]);
     },
   );
 }
 
-export async function createTournament(
-  data: Omit<Tournament, "id" | "slotsUsed">,
-): Promise<string> {
+export async function createTournament(data: Omit<Tournament, "id" | "slotsUsed">): Promise<string> {
   const ref = await addDoc(collection(db, COL.tournaments), {
     ...data,
     slotsUsed: 0,
@@ -109,10 +94,7 @@ export async function createTournament(
   return ref.id;
 }
 
-export async function updateTournament(
-  id: string,
-  data: Partial<Tournament>,
-): Promise<void> {
+export async function updateTournament(id: string, data: Partial<Tournament>): Promise<void> {
   const payload: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(data)) {
     payload[k] = v === undefined ? deleteField() : v;
@@ -176,6 +158,7 @@ export async function publishWinners(
       rank: r.rank,
       booyahWinner: r.booyahWinner ?? false,
       publishedAt: serverTimestamp(),
+      paid: false,
     });
   }
   await batch.commit();
@@ -189,20 +172,16 @@ const DEFAULT_PAYMENT: PaymentSettings = {
     "Send details on WhatsApp to register",
   ],
   whatsappNumber: "917488765246",
+  merchantName: "",
+  supportEmail: "",
+  telegramLink: "",
 };
 
-/**
- * Merges partial payment data from Firestore with DEFAULT_PAYMENT so that
- * missing or undefined fields always fall back to safe defaults.
- */
 function mergePayment(raw: unknown): PaymentSettings {
   if (!raw || typeof raw !== "object") return DEFAULT_PAYMENT;
   const p = raw as Partial<PaymentSettings>;
   return {
-    upiId:
-      typeof p.upiId === "string" && p.upiId.trim()
-        ? p.upiId.trim()
-        : DEFAULT_PAYMENT.upiId,
+    upiId: typeof p.upiId === "string" && p.upiId.trim() ? p.upiId.trim() : DEFAULT_PAYMENT.upiId,
     instructions:
       Array.isArray(p.instructions) && p.instructions.length > 0
         ? p.instructions
@@ -211,6 +190,9 @@ function mergePayment(raw: unknown): PaymentSettings {
       typeof p.whatsappNumber === "string" && p.whatsappNumber.trim()
         ? p.whatsappNumber.trim()
         : DEFAULT_PAYMENT.whatsappNumber,
+    merchantName: typeof p.merchantName === "string" ? p.merchantName : "",
+    supportEmail: typeof p.supportEmail === "string" ? p.supportEmail : "",
+    telegramLink: typeof p.telegramLink === "string" ? p.telegramLink : "",
   };
 }
 
@@ -224,16 +206,11 @@ export function subscribeAppSettings(
         const data = snap.data() as { payment?: unknown };
         cb({ payment: mergePayment(data.payment) });
       } else {
-        // Document does not exist — use fallback silently (no crash, no collection created)
         cb({ payment: DEFAULT_PAYMENT });
       }
     },
     (err) => {
-      // Firestore error (permission-denied, network, etc.) — log and fall back silently
-      console.warn(
-        "[AppSettings] Firestore error, using defaults:",
-        err.message,
-      );
+      console.warn("[AppSettings] Firestore error, using defaults:", err.message);
       cb({ payment: DEFAULT_PAYMENT });
     },
   );

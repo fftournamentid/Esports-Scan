@@ -136,11 +136,33 @@ export default function HomeScreen() {
     return unsub;
   }, []);
 
-  const visible = tournaments.filter(t => t.published && t.status !== 'cancelled').filter(t => {
-    if (statusFilter !== 'all' && t.status !== statusFilter) return false;
-    if (catFilter !== 'all' && t.category !== catFilter) return false;
-    return true;
-  });
+  const visible = tournaments
+    .filter(t => t.published && t.status !== 'cancelled')
+    .filter(t => {
+      if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+      if (catFilter !== 'all' && t.category !== catFilter) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      // Live first, then upcoming sorted nearest-first, then others
+      if (a.status === 'live' && b.status !== 'live') return -1;
+      if (b.status === 'live' && a.status !== 'live') return 1;
+      if (a.status === 'upcoming' && b.status === 'upcoming') {
+        try {
+          const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+          const dateA = a.repeatDaily ? today : a.date;
+          const dateB = b.repeatDaily ? today : b.date;
+          const [hA, mA] = a.time.split(':').map(Number);
+          const [hB, mB] = b.time.split(':').map(Number);
+          const [yrA, moA, dyA] = dateA.split('-').map(Number);
+          const [yrB, moB, dyB] = dateB.split('-').map(Number);
+          const msA = new Date(yrA, moA - 1, dyA, hA, mA).getTime();
+          const msB = new Date(yrB, moB - 1, dyB, hB, mB).getTime();
+          return msA - msB;
+        } catch { return 0; }
+      }
+      return 0;
+    });
 
   const joinedIds = new Set(joinedTournaments.map(j => j.tournamentId));
   const topPadding = Platform.OS === 'web' ? 67 : insets.top;
@@ -155,8 +177,8 @@ export default function HomeScreen() {
         <View style={styles.logoRow}>
           <Image source={require('@/assets/images/icon.png')} style={styles.logoImg} />
           <View>
-            <Text style={[styles.appTitle, { color: colors.primary }]}>FREE FIRE</Text>
-            <Text style={[styles.appSubtitle, { color: colors.mutedForeground }]}>TOURNAMENT</Text>
+            <Text style={[styles.appTitle, { color: colors.primary }]}>FIRST BOOYAH</Text>
+            <Text style={[styles.appSubtitle, { color: colors.mutedForeground }]}>TOURNAMENT HUB</Text>
           </View>
         </View>
         <View style={styles.headerRight}>

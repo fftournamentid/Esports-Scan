@@ -26,6 +26,9 @@ export default function AppSettingsScreen() {
 
   const [upiId, setUpiId] = useState(paymentSettings.upiId);
   const [whatsapp, setWhatsapp] = useState(paymentSettings.whatsappNumber);
+  const [merchantName, setMerchantName] = useState(paymentSettings.merchantName ?? '');
+  const [supportEmail, setSupportEmail] = useState(paymentSettings.supportEmail ?? '');
+  const [telegramLink, setTelegramLink] = useState(paymentSettings.telegramLink ?? '');
   const [saving, setSaving] = useState(false);
   const [backing, setBacking] = useState(false);
 
@@ -36,16 +39,23 @@ export default function AppSettingsScreen() {
       Alert.alert('Error', 'UPI ID cannot be empty');
       return;
     }
-    if (whatsapp && !/^\d{10,15}$/.test(whatsapp)) {
-      Alert.alert('Error', 'WhatsApp number should be 10–15 digits (with country code, no +)');
+    if (whatsapp && !/^\d{10,15}$/.test(whatsapp.trim())) {
+      Alert.alert('Error', 'WhatsApp number should be 10–15 digits with country code, no +\n(e.g. 917488765248)');
+      return;
+    }
+    if (supportEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supportEmail.trim())) {
+      Alert.alert('Error', 'Please enter a valid support email address');
       return;
     }
     setSaving(true);
     try {
       await updatePaymentSettings({
         ...paymentSettings,
-        upiId: upiId.trim(),
-        whatsappNumber: whatsapp,
+        upiId: upiId.trim().toLowerCase(),
+        whatsappNumber: whatsapp.trim(),
+        merchantName: merchantName.trim(),
+        supportEmail: supportEmail.trim().toLowerCase(),
+        telegramLink: telegramLink.trim(),
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Saved', 'Settings updated successfully.');
@@ -60,7 +70,7 @@ export default function AppSettingsScreen() {
       const data = getBackupData();
       const date = new Date().toISOString().split('T')[0];
       await Share.share({
-        title: `FreeFire_Tournament_Backup_${date}.json`,
+        title: `FirstBooyah_Backup_${date}.json`,
         message: data,
       });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -70,6 +80,43 @@ export default function AppSettingsScreen() {
       setBacking(false);
     }
   };
+
+  const Field = ({
+    icon,
+    title,
+    hint,
+    value,
+    onChangeText,
+    placeholder,
+    keyboardType = 'default',
+    autoCapitalize = 'none',
+  }: {
+    icon: React.ComponentProps<typeof Feather>['name'];
+    title: string;
+    hint: string;
+    value: string;
+    onChangeText: (v: string) => void;
+    placeholder: string;
+    keyboardType?: 'default' | 'email-address' | 'numeric' | 'url';
+    autoCapitalize?: 'none' | 'sentences' | 'words';
+  }) => (
+    <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.sectionHeader}>
+        <Feather name={icon} size={16} color={colors.primary} />
+        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{title}</Text>
+      </View>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.mutedForeground + '66'}
+        autoCapitalize={autoCapitalize}
+        keyboardType={keyboardType}
+        style={[styles.input, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
+      />
+      <Text style={[styles.hint, { color: colors.mutedForeground }]}>{hint}</Text>
+    </View>
+  );
 
   return (
     <KeyboardAvoidingView
@@ -88,46 +135,62 @@ export default function AppSettingsScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
-        {/* UPI ID */}
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.sectionHeader}>
-            <Feather name="credit-card" size={16} color={colors.primary} />
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>UPI ID</Text>
-          </View>
-          <TextInput
-            value={upiId}
-            onChangeText={setUpiId}
-            placeholder="fftournament@nyes"
-            placeholderTextColor={colors.mutedForeground + '66'}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            style={[styles.input, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
-          />
-          <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-            Shown on payment screen and used to generate QR code for players
-          </Text>
-        </View>
+        <Text style={[styles.groupLabel, { color: colors.mutedForeground }]}>PAYMENT</Text>
 
-        {/* WhatsApp */}
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.sectionHeader}>
-            <Feather name="message-circle" size={16} color={colors.primary} />
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>WhatsApp Number</Text>
-          </View>
-          <TextInput
-            value={whatsapp}
-            onChangeText={setWhatsapp}
-            placeholder="917488765248"
-            placeholderTextColor={colors.mutedForeground + '66'}
-            keyboardType="numeric"
-            style={[styles.input, { backgroundColor: colors.muted, borderColor: colors.border, color: colors.foreground }]}
-          />
-          <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-            Include country code without + (e.g. 917488765248 for India +91 7488765248)
-          </Text>
-        </View>
+        <Field
+          icon="credit-card"
+          title="UPI ID"
+          hint="Shown on payment screen and used to generate QR code for players"
+          value={upiId}
+          onChangeText={setUpiId}
+          placeholder="fftournament@nyes"
+          keyboardType="email-address"
+        />
 
-        {/* Backup */}
+        <Field
+          icon="user"
+          title="Merchant / Business Name"
+          hint="Displayed as the merchant name on the payment screen"
+          value={merchantName}
+          onChangeText={setMerchantName}
+          placeholder="First Booyah"
+          autoCapitalize="words"
+        />
+
+        <Text style={[styles.groupLabel, { color: colors.mutedForeground }]}>CONTACT & SUPPORT</Text>
+
+        <Field
+          icon="message-circle"
+          title="WhatsApp Number"
+          hint="Include country code without + (e.g. 917488765248 for India +91 7488765248)"
+          value={whatsapp}
+          onChangeText={setWhatsapp}
+          placeholder="917488765248"
+          keyboardType="numeric"
+        />
+
+        <Field
+          icon="mail"
+          title="Support Email"
+          hint="Players can reach you via this email address"
+          value={supportEmail}
+          onChangeText={setSupportEmail}
+          placeholder="support@firstbooyah.com"
+          keyboardType="email-address"
+        />
+
+        <Field
+          icon="send"
+          title="Telegram Link"
+          hint="Telegram channel or group link for player announcements"
+          value={telegramLink}
+          onChangeText={setTelegramLink}
+          placeholder="https://t.me/firstbooyah"
+          keyboardType="url"
+        />
+
+        <Text style={[styles.groupLabel, { color: colors.mutedForeground }]}>DATA</Text>
+
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.sectionHeader}>
             <Feather name="download" size={16} color={colors.primary} />
@@ -169,7 +232,8 @@ const styles = StyleSheet.create({
   backBtn: { padding: 8 },
   saveBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8 },
   saveBtnText: { fontSize: 12, fontWeight: '700', letterSpacing: 1 },
-  content: { paddingHorizontal: 16, paddingBottom: 40, gap: 14 },
+  content: { paddingHorizontal: 16, paddingBottom: 40, gap: 10 },
+  groupLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginTop: 6, marginBottom: 2 },
   section: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionTitle: { fontSize: 14, fontWeight: '700' },

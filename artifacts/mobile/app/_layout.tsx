@@ -10,11 +10,12 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import "@/utils/notifications";
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import FloatingWhatsApp from "@/components/FloatingWhatsApp";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { TournamentProvider } from "@/context/TournamentContext";
 
@@ -70,21 +71,24 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 function RootLayoutNav() {
   return (
-    <AuthGate>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="auth" />
-        <Stack.Screen name="tournament/[id]" />
-        <Stack.Screen name="payment/[id]" />
-        <Stack.Screen name="join/[id]" />
-        <Stack.Screen name="room/[id]" />
-        <Stack.Screen name="results/[id]" />
-        <Stack.Screen name="notifications" />
-        <Stack.Screen name="admin-dashboard" />
-        <Stack.Screen name="admin" />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-    </AuthGate>
+    <View style={{ flex: 1 }}>
+      <AuthGate>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="auth" />
+          <Stack.Screen name="tournament/[id]" />
+          <Stack.Screen name="payment/[id]" />
+          <Stack.Screen name="join/[id]" />
+          <Stack.Screen name="room/[id]" />
+          <Stack.Screen name="results/[id]" />
+          <Stack.Screen name="notifications" />
+          <Stack.Screen name="admin-dashboard" />
+          <Stack.Screen name="admin" />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+      </AuthGate>
+      <FloatingWhatsApp />
+    </View>
   );
 }
 
