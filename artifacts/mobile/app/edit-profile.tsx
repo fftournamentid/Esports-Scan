@@ -26,6 +26,8 @@ export default function EditProfileScreen() {
 
   const [name, setName] = useState(userProfile?.name ?? '');
   const [freeFireUid, setFreeFireUid] = useState(userProfile?.freeFireUid ?? '');
+  const [editingName, setEditingName] = useState(false);
+  const [editingUid, setEditingUid] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -41,6 +43,8 @@ export default function EditProfileScreen() {
       Alert.alert('Name Required', 'Please enter your name.');
       return;
     }
+    setEditingName(false);
+    setEditingUid(false);
     setSaving(true);
     try {
       await updateUserProfile(firebaseUser.uid, {
@@ -52,20 +56,11 @@ export default function EditProfileScreen() {
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch {
-      Alert.alert('Error', 'Failed to save profile. Please try again.');
+      Alert.alert('Error', 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
     }
   };
-
-  const readOnlyRows = [
-    { icon: 'mail' as const,      label: 'Email',      value: userProfile?.email || firebaseUser?.email || '—' },
-    { icon: 'shield' as const,    label: 'Role',        value: userProfile?.role ? userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1) : '—' },
-    { icon: 'key' as const,       label: 'User ID',     value: firebaseUser?.uid || '—' },
-    { icon: 'calendar' as const,  label: 'Joined',      value: userProfile?.createdAt
-        ? new Date(userProfile.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-        : '—' },
-  ];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -85,73 +80,98 @@ export default function EditProfileScreen() {
           { paddingBottom: Platform.OS === 'web' ? 40 : insets.bottom + 32 },
         ]}
       >
-        {/* Editable fields */}
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionLabel, { color: colors.primary }]}>EDITABLE</Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
 
-          <View style={[styles.fieldWrap, { borderBottomColor: colors.border }]}>
-            <View style={styles.fieldLabelRow}>
-              <Feather name="user" size={13} color={colors.mutedForeground} />
-              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Name</Text>
-            </View>
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="Your display name"
-              placeholderTextColor={colors.mutedForeground}
-              style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.muted }]}
-              autoCapitalize="words"
-              returnKeyType="next"
-            />
-          </View>
-
-          <View style={styles.fieldWrap}>
-            <View style={styles.fieldLabelRow}>
-              <Feather name="crosshair" size={13} color={colors.mutedForeground} />
-              <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Free Fire UID</Text>
-            </View>
-            <TextInput
-              value={freeFireUid}
-              onChangeText={setFreeFireUid}
-              placeholder="Your Free Fire UID"
-              placeholderTextColor={colors.mutedForeground}
-              style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.muted }]}
-              keyboardType="default"
-              autoCapitalize="none"
-              returnKeyType="done"
-            />
-          </View>
-        </View>
-
-        {/* Read-only fields */}
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>READ ONLY</Text>
-          {readOnlyRows.map((row, i) => (
-            <View
-              key={row.label}
-              style={[
-                styles.readRow,
-                { borderBottomColor: colors.border, borderBottomWidth: i < readOnlyRows.length - 1 ? 1 : 0 },
-              ]}
-            >
-              <View style={styles.readLeft}>
-                <Feather name={row.icon} size={13} color={colors.mutedForeground} />
-                <Text style={[styles.readLabel, { color: colors.mutedForeground }]}>{row.label}</Text>
+          {/* Name field */}
+          <View style={[styles.fieldRow, { borderBottomColor: colors.border }]}>
+            <View style={styles.fieldLeft}>
+              <View style={[styles.iconWrap, { backgroundColor: colors.primary + '18' }]}>
+                <Feather name="user" size={15} color={colors.primary} />
               </View>
-              <Text style={[styles.readValue, { color: colors.foreground }]} numberOfLines={1} selectable>
-                {row.value}
-              </Text>
+              <View style={styles.fieldContent}>
+                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Name</Text>
+                {editingName ? (
+                  <TextInput
+                    value={name}
+                    onChangeText={setName}
+                    autoFocus
+                    placeholder="Your name"
+                    placeholderTextColor={colors.mutedForeground}
+                    style={[styles.inlineInput, { color: colors.foreground, borderColor: colors.primary + '66' }]}
+                    autoCapitalize="words"
+                    returnKeyType="done"
+                    onSubmitEditing={() => setEditingName(false)}
+                  />
+                ) : (
+                  <Text style={[styles.fieldValue, { color: colors.foreground }]}>
+                    {name || '—'}
+                  </Text>
+                )}
+              </View>
             </View>
-          ))}
+            <TouchableOpacity
+              onPress={() => setEditingName(e => !e)}
+              style={[styles.editIconBtn, {
+                backgroundColor: editingName ? colors.primary + '22' : colors.muted,
+                borderColor: editingName ? colors.primary + '55' : colors.border,
+              }]}
+            >
+              <Feather
+                name={editingName ? 'check' : 'edit-2'}
+                size={14}
+                color={editingName ? colors.primary : colors.mutedForeground}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Free Fire UID field */}
+          <View style={styles.fieldRow}>
+            <View style={styles.fieldLeft}>
+              <View style={[styles.iconWrap, { backgroundColor: colors.primary + '18' }]}>
+                <Feather name="crosshair" size={15} color={colors.primary} />
+              </View>
+              <View style={styles.fieldContent}>
+                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Free Fire UID</Text>
+                {editingUid ? (
+                  <TextInput
+                    value={freeFireUid}
+                    onChangeText={setFreeFireUid}
+                    autoFocus
+                    placeholder="Your Free Fire UID"
+                    placeholderTextColor={colors.mutedForeground}
+                    style={[styles.inlineInput, { color: colors.foreground, borderColor: colors.primary + '66' }]}
+                    autoCapitalize="none"
+                    keyboardType="default"
+                    returnKeyType="done"
+                    onSubmitEditing={() => setEditingUid(false)}
+                  />
+                ) : (
+                  <Text style={[styles.fieldValue, { color: colors.foreground }]}>
+                    {freeFireUid || '—'}
+                  </Text>
+                )}
+              </View>
+            </View>
+            <TouchableOpacity
+              onPress={() => setEditingUid(e => !e)}
+              style={[styles.editIconBtn, {
+                backgroundColor: editingUid ? colors.primary + '22' : colors.muted,
+                borderColor: editingUid ? colors.primary + '55' : colors.border,
+              }]}
+            >
+              <Feather
+                name={editingUid ? 'check' : 'edit-2'}
+                size={14}
+                color={editingUid ? colors.primary : colors.mutedForeground}
+              />
+            </TouchableOpacity>
+          </View>
+
         </View>
 
         {/* Save button */}
         <TouchableOpacity
-          style={[
-            styles.saveBtn,
-            { backgroundColor: colors.primary },
-            saving && { opacity: 0.65 },
-          ]}
+          style={[styles.saveBtn, { backgroundColor: colors.primary }, saving && { opacity: 0.65 }]}
           onPress={handleSave}
           disabled={saving}
           activeOpacity={0.85}
@@ -175,26 +195,31 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 14, fontWeight: '700', letterSpacing: 2 },
   backBtn: { padding: 8 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 8, gap: 14 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 16, gap: 16 },
 
-  section: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 14 },
-  sectionLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  card: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
 
-  fieldWrap: { gap: 8, paddingBottom: 14, borderBottomWidth: 1 },
-  fieldLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  fieldLabel: { fontSize: 12, fontWeight: '600' },
-  input: {
-    height: 46, borderRadius: 10, borderWidth: 1,
-    paddingHorizontal: 12, fontSize: 15,
+  fieldRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', padding: 16,
+    borderBottomWidth: 1,
+    gap: 12,
+  },
+  fieldLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  iconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  fieldContent: { flex: 1, gap: 2 },
+  fieldLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.4 },
+  fieldValue: { fontSize: 15, fontWeight: '500' },
+  inlineInput: {
+    fontSize: 15, fontWeight: '500',
+    borderBottomWidth: 1.5, paddingBottom: 2,
+    paddingHorizontal: 0,
   },
 
-  readRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 11,
+  editIconBtn: {
+    width: 32, height: 32, borderRadius: 8, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
   },
-  readLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  readLabel: { fontSize: 13 },
-  readValue: { fontSize: 13, fontWeight: '500', maxWidth: '55%', textAlign: 'right' },
 
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
