@@ -38,13 +38,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        // Logout path — clear state immediately, no async work needed
+        setFirebaseUser(null);
+        setUserProfile(null);
+        setAuthLoading(false);
+        return;
+      }
+      // Login path — load profile before marking auth ready
       setAuthLoading(true);
       setFirebaseUser(user);
-      if (user) {
-        await loadProfile(user);
-      } else {
-        setUserProfile(null);
-      }
+      await loadProfile(user);
       setAuthLoading(false);
     });
     return unsub;

@@ -37,8 +37,7 @@ export default function ProfileScreen() {
             setLoggingOut(true);
             try {
               await logOut();
-              // AuthGate in _layout.tsx detects firebaseUser → null
-              // and issues <Redirect href="/auth/login" />, clearing the stack.
+              router.replace('/auth/login' as never);
             } catch {
               setLoggingOut(false);
               Alert.alert('Error', 'Failed to log out. Please try again.');
