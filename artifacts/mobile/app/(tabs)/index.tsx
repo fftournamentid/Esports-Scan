@@ -17,7 +17,7 @@ import DropdownPicker from '@/components/DropdownPicker';
 import TournamentCard from '@/components/TournamentCard';
 import { RecentWinner, TournamentCategory, TournamentStatus, useTournament } from '@/context/TournamentContext';
 import { useColors } from '@/hooks/useColors';
-import type { AppNotification } from '@/types';
+import type { AppNotification, JoinStatus } from '@/types';
 import { subscribeNotifications } from '@/services/firestoreNotificationService';
 
 const LAST_READ_KEY = 'ff_notif_last_read';
@@ -114,21 +114,19 @@ export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { tournaments, joinedTournaments, recentWinners } = useTournament();
+  const { tournaments, joinedTournaments, recentWinners, getJoinByTournamentId } = useTournament();
 
   const [statusFilter, setStatusFilter] = useState<'all' | TournamentStatus>('all');
   const [catFilter, setCatFilter] = useState<'all' | TournamentCategory>('all');
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    let notifs: AppNotification[] = [];
     let lastRead = '';
 
     AsyncStorage.getItem(LAST_READ_KEY).then((val) => { lastRead = val ?? ''; });
 
     const unsub = subscribeNotifications((ns) => {
-      notifs = ns;
-      const count = notifs.filter((n) =>
+      const count = ns.filter((n) =>
         !lastRead || new Date(n.createdAt) > new Date(lastRead),
       ).length;
       setUnreadCount(count);
@@ -144,7 +142,6 @@ export default function HomeScreen() {
       return true;
     })
     .sort((a, b) => {
-      // Live first, then upcoming sorted nearest-first, then others
       if (a.status === 'live' && b.status !== 'live') return -1;
       if (b.status === 'live' && a.status !== 'live') return 1;
       if (a.status === 'upcoming' && b.status === 'upcoming') {
@@ -164,7 +161,6 @@ export default function HomeScreen() {
       return 0;
     });
 
-  const joinedIds = new Set(joinedTournaments.map(j => j.tournamentId));
   const topPadding = Platform.OS === 'web' ? 67 : insets.top;
 
   const ListHeader = recentWinners.length > 0
@@ -177,7 +173,7 @@ export default function HomeScreen() {
         <View style={styles.logoRow}>
           <Image source={require('@/assets/images/icon.png')} style={styles.logoImg} />
           <View>
-            <Text style={[styles.appTitle, { color: colors.primary }]}>FIRST BOOYAH</Text>
+            <Text style={[styles.appTitle, { color: colors.primary }]}>fftournament</Text>
             <Text style={[styles.appSubtitle, { color: colors.mutedForeground }]}>TOURNAMENT HUB</Text>
           </View>
         </View>
@@ -225,9 +221,13 @@ export default function HomeScreen() {
         data={visible}
         keyExtractor={t => t.id}
         ListHeaderComponent={ListHeader}
-        renderItem={({ item }) => (
-          <TournamentCard tournament={item} joined={joinedIds.has(item.id)} />
-        )}
+        renderItem={({ item }) => {
+          const join = getJoinByTournamentId(item.id);
+          const joinStatus: JoinStatus | null = join?.status ?? null;
+          return (
+            <TournamentCard tournament={item} joinStatus={joinStatus} />
+          );
+        }}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Feather name="inbox" size={48} color={colors.border} />
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
   },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   logoImg: { width: 36, height: 36, borderRadius: 8 },
-  appTitle: { fontSize: 18, fontWeight: '700', letterSpacing: 2 },
+  appTitle: { fontSize: 18, fontWeight: '700', letterSpacing: 1 },
   appSubtitle: { fontSize: 10, letterSpacing: 3, marginTop: -2 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   bellBtn: { position: 'relative', padding: 4 },

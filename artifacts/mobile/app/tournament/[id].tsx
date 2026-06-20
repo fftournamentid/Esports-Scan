@@ -74,7 +74,7 @@ export default function TournamentDetailScreen() {
   const slotsLeft = t.slots - t.slotsUsed;
   const isRejected = existingJoin?.status === 'rejected';
   const canJoin = t.status === 'upcoming' && slotsLeft > 0 && (!existingJoin || isRejected);
-  const upiLink = `upi://pay?pa=${encodeURIComponent(paymentSettings.upiId)}&pn=FreeFire%20Tournament&am=${t.entryFee}&tn=Tournament%20Entry`;
+  const upiLink = `upi://pay?pa=${encodeURIComponent(paymentSettings.upiId)}&pn=fftournament&am=${t.entryFee}&tn=Tournament%20Entry`;
 
   const countdownDate = t.repeatDaily
     ? getNextDailyOccurrenceIST(t.time).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
@@ -93,7 +93,6 @@ export default function TournamentDetailScreen() {
       return;
     }
 
-    // Profile completion check — must have at least 5/6 fields filled
     const completion = getProfileCompletion(userProfile);
     if (!completion.canJoin) {
       Alert.alert(
@@ -143,16 +142,6 @@ export default function TournamentDetailScreen() {
     } finally {
       setJoining(false);
     }
-  };
-
-  const handleOpenWhatsAppSupport = () => {
-    const waNumber = paymentSettings.whatsappNumber.replace(/\D/g, '');
-    if (!waNumber) {
-      Alert.alert('Unavailable', 'WhatsApp support is not configured yet.');
-      return;
-    }
-    const msg = `Hi, I need help with the tournament: ${t.name}`;
-    Linking.openURL(`https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`);
   };
 
   return (
@@ -247,19 +236,19 @@ export default function TournamentDetailScreen() {
           </View>
         )}
 
-        {/* Rejection banner — shown when user is rejoining after a rejection */}
+        {/* Rejection banner */}
         {isRejected && canJoin && (
           <View style={[styles.rejectedBanner, { backgroundColor: colors.destructive + '18', borderColor: colors.destructive + '55' }]}>
             <Feather name="x-circle" size={20} color={colors.destructive} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.rejectedTitle, { color: colors.destructive }]}>PAYMENT REJECTED</Text>
+              <Text style={[styles.rejectedTitle, { color: colors.destructive }]}>❌ PAYMENT REJECTED</Text>
               {existingJoin?.rejectionReason ? (
                 <Text style={[styles.rejectedReason, { color: colors.mutedForeground }]}>
                   Reason: {existingJoin.rejectionReason}
                 </Text>
               ) : null}
               <Text style={[styles.rejectedSub, { color: colors.mutedForeground }]}>
-                Please submit a new UTR / Transaction ID to rejoin.
+                Your registration was rejected. Please submit a new UTR / Transaction ID to rejoin.
               </Text>
             </View>
           </View>
@@ -284,7 +273,7 @@ export default function TournamentDetailScreen() {
           </View>
         )}
 
-        {/* How To Join + Register Form + WhatsApp button */}
+        {/* How To Join + Register Form */}
         {canJoin && (
           <>
             <View style={styles.howToCard}>
@@ -358,31 +347,38 @@ export default function TournamentDetailScreen() {
                     {joining ? 'REGISTERING...' : 'SUBMIT REGISTRATION'}
                   </Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.waSupportBtn}
-                  onPress={handleOpenWhatsAppSupport}
-                  activeOpacity={0.85}
-                >
-                  <Feather name="message-circle" size={16} color="#25D366" />
-                  <Text style={styles.waSupportBtnText}>WhatsApp Support</Text>
-                </TouchableOpacity>
               </>
             )}
           </>
         )}
 
-        {/* Already joined (only for non-rejected statuses) */}
+        {/* Already joined — status card (non-rejected) */}
         {existingJoin && !isRejected && (
-          <View style={[styles.joinedCard, { backgroundColor: colors.success + '18', borderColor: colors.success + '44' }]}>
-            <Feather name="check-circle" size={20} color={colors.success} />
+          <View style={[
+            styles.joinedCard,
+            existingJoin.status === 'pending'
+              ? { backgroundColor: '#FF6B00' + '18', borderColor: '#FF6B00' + '44' }
+              : { backgroundColor: colors.success + '18', borderColor: colors.success + '44' }
+          ]}>
+            <Feather
+              name={existingJoin.status === 'pending' ? 'clock' : 'check-circle'}
+              size={20}
+              color={existingJoin.status === 'pending' ? '#FF6B00' : colors.success}
+            />
             <View style={styles.joinedTextGroup}>
-              <Text style={[styles.joinedTitle, { color: colors.success }]}>YOU HAVE JOINED</Text>
+              <Text style={[styles.joinedTitle, {
+                color: existingJoin.status === 'pending' ? '#FF6B00' : colors.success,
+              }]}>
+                {existingJoin.status === 'pending' ? '⏳ PENDING VERIFICATION' : '✅ YOU HAVE JOINED'}
+              </Text>
               <Text style={[styles.joinedSub, { color: colors.mutedForeground }]}>
-                Status: {existingJoin.status === 'pending' ? 'Waiting for admin approval' :
-                  existingJoin.status === 'approved' ? 'Approved — room info coming soon' :
-                    existingJoin.status === 'room_released' ? 'Room Released — check My Tournaments' :
-                      'Completed'}
+                {existingJoin.status === 'pending'
+                  ? 'Your payment is being verified by the admin'
+                  : existingJoin.status === 'approved'
+                  ? 'Approved — room info will be shared before the match'
+                  : existingJoin.status === 'room_released'
+                  ? 'Room Released — check My Tournaments'
+                  : 'Completed'}
               </Text>
             </View>
             {existingJoin.status === 'room_released' && (
@@ -488,40 +484,38 @@ const styles = StyleSheet.create({
   loginBtnText: { fontSize: 13, fontWeight: '700', color: '#000' },
   txnCard: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 8 },
   txnLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1 },
-  txnInputWrap: {
-    flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1,
-    paddingHorizontal: 12, height: 48,
-  },
-  txnInput: { flex: 1, fontSize: 15, letterSpacing: 0.5 },
-  txnHint: { fontSize: 11, lineHeight: 16 },
+  txnInputWrap: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, height: 48 },
+  txnInput: { flex: 1, fontSize: 15, fontWeight: '500' },
+  txnHint: { fontSize: 11 },
   registerBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, paddingVertical: 18, borderRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    paddingVertical: 16, borderRadius: 14,
   },
-  registerBtnText: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1.5 },
-  waSupportBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, paddingVertical: 12, borderRadius: 12,
-    borderWidth: 1, borderColor: '#25D36644',
-    backgroundColor: '#25D36611',
+  registerBtnText: { fontSize: 15, fontWeight: '800', color: '#FFF', letterSpacing: 1 },
+  rejectedBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    borderWidth: 1, borderRadius: 14, padding: 16,
   },
-  waSupportBtnText: { fontSize: 14, fontWeight: '600', color: '#25D366' },
-  joinedCard: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 12, padding: 14 },
-  joinedTextGroup: { flex: 1 },
-  joinedTitle: { fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
-  joinedSub: { fontSize: 12, marginTop: 2 },
-  viewRoomBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  viewRoomText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
-  statusBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, padding: 14 },
-  statusBannerText: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
-  resultsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderRadius: 12, padding: 14 },
-  resultsBtnText: { fontSize: 13, fontWeight: '700', letterSpacing: 1 },
-  rejectedBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderWidth: 1.5, borderRadius: 14, padding: 16 },
-  rejectedTitle: { fontSize: 14, fontWeight: '800', letterSpacing: 0.5, marginBottom: 4 },
+  rejectedTitle: { fontSize: 14, fontWeight: '800', marginBottom: 4 },
   rejectedReason: { fontSize: 13, marginBottom: 4 },
-  rejectedSub: { fontSize: 12 },
+  rejectedSub: { fontSize: 12, lineHeight: 18 },
+  joinedCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderWidth: 1, borderRadius: 14, padding: 16,
+  },
+  joinedTextGroup: { flex: 1 },
+  joinedTitle: { fontSize: 14, fontWeight: '800', marginBottom: 4 },
+  joinedSub: { fontSize: 12, lineHeight: 18 },
+  viewRoomBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  viewRoomText: { fontSize: 12, fontWeight: '700', color: '#FFF' },
+  statusBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 1, borderRadius: 12, padding: 14,
+  },
+  statusBannerText: { fontSize: 13, fontWeight: '600' },
+  resultsBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    borderWidth: 1, borderRadius: 12, padding: 14,
+  },
+  resultsBtnText: { fontSize: 14, fontWeight: '700', letterSpacing: 1 },
 });

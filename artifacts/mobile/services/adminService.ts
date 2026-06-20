@@ -54,6 +54,9 @@ export async function getAllUsersProfiles(): Promise<UserProfile[]> {
         name: data.name ?? '',
         email: data.email ?? '',
         freeFireUid: data.freeFireUid ?? '',
+        phoneNumber: data.phoneNumber ?? '',
+        upiId: data.upiId ?? '',
+        whatsappNumber: data.whatsappNumber ?? '',
         role: data.role ?? 'user',
         createdAt: data.createdAt instanceof Timestamp
           ? data.createdAt.toDate().toISOString()
@@ -79,6 +82,9 @@ export function subscribeAllUsers(
           name: data.name ?? '',
           email: data.email ?? '',
           freeFireUid: data.freeFireUid ?? '',
+          phoneNumber: data.phoneNumber ?? '',
+          upiId: data.upiId ?? '',
+          whatsappNumber: data.whatsappNumber ?? '',
           role: data.role ?? 'user',
           createdAt: data.createdAt instanceof Timestamp
             ? data.createdAt.toDate().toISOString()

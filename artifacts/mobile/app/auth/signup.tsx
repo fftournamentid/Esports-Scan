@@ -48,7 +48,6 @@ export default function SignupScreen() {
     setLoading(true);
     try {
       await signUp(email, password, name, freeFireUid);
-      // Do NOT navigate here — AuthGate reads userProfile.role and routes accordingly
     } catch (e: unknown) {
       setLoading(false);
       const msg = (e as { code?: string }).code ?? '';
@@ -78,7 +77,7 @@ export default function SignupScreen() {
       >
         <View style={s.logoWrap}>
           <Image source={require('@/assets/images/icon.png')} style={s.logo} />
-          <Text style={[s.brand, { color: colors.primary }]}>FIRST BOOYAH</Text>
+          <Text style={[s.brand, { color: colors.primary }]}>fftournament</Text>
           <Text style={[s.brandSub, { color: colors.mutedForeground }]}>TOURNAMENT HUB</Text>
         </View>
 
@@ -229,7 +228,7 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
     scroll: { flexGrow: 1, paddingHorizontal: 24 },
     logoWrap: { alignItems: 'center', marginBottom: 24, gap: 6 },
     logo: { width: 60, height: 60, borderRadius: 14, marginBottom: 6 },
-    brand: { fontSize: 20, fontWeight: '800', letterSpacing: 3 },
+    brand: { fontSize: 24, fontWeight: '800', letterSpacing: 2 },
     brandSub: { fontSize: 10, letterSpacing: 4, marginTop: -4 },
     card: { borderRadius: 20, borderWidth: 1, padding: 24, gap: 14 },
     title: { fontSize: 22, fontWeight: '700' },

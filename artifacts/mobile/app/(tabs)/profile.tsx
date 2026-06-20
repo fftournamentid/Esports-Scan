@@ -16,6 +16,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { getProfileCompletion } from '@/utils/profileCompletion';
 
+const APP_SHARE_URL = 'https://fftournament.replit.app';
+
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -35,7 +37,11 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             setLoggingOut(true);
-            await logout();
+            try {
+              await logout();
+            } catch {
+              setLoggingOut(false);
+            }
           },
         },
       ],
@@ -44,11 +50,15 @@ export default function ProfileScreen() {
 
   const handleShare = async () => {
     try {
-      await Share.share({ message: 'Join First Booyah and play Free Fire tournaments. Download now!' });
+      await Share.share({
+        message: `Join fftournament — Play Free Fire tournaments and win real rewards!\n\n${APP_SHARE_URL}\n\nDownload now and start winning! 🎮🔥`,
+        url: APP_SHARE_URL,
+        title: 'fftournament',
+      });
     } catch { }
   };
 
-  const displayName = userProfile?.name || firebaseUser?.displayName || 'Player';
+  const displayName = userProfile?.name || firebaseUser?.displayName || '';
   const email = userProfile?.email || firebaseUser?.email || '';
   const freeFireUid = userProfile?.freeFireUid || '';
   const phone = userProfile?.phoneNumber || '';
@@ -61,7 +71,7 @@ export default function ProfileScreen() {
   const barWidth = `${completion.percentage}%` as `${number}%`;
 
   const infoRows = [
-    { icon: 'user' as const, label: 'Name', value: displayName },
+    { icon: 'user' as const, label: 'Name', value: displayName || '—' },
     { icon: 'mail' as const, label: 'Email', value: email || '—' },
     { icon: 'phone' as const, label: 'Phone', value: phone || '—' },
     { icon: 'crosshair' as const, label: 'Free Fire UID', value: freeFireUid || '—' },
@@ -70,10 +80,12 @@ export default function ProfileScreen() {
     { icon: 'shield' as const, label: 'Role', value: role.charAt(0).toUpperCase() + role.slice(1) },
   ];
 
+  const avatarLetter = displayName ? displayName.charAt(0).toUpperCase() : (email ? email.charAt(0).toUpperCase() : '?');
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPadding + 12 }]}>
-        <Text style={[styles.title, { color: colors.foreground }]}>PROFILE</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>fftournament</Text>
         <Feather name="user" size={22} color={colors.primary} />
       </View>
 
@@ -88,10 +100,12 @@ export default function ProfileScreen() {
         <View style={[styles.avatarCard, { backgroundColor: colors.card, borderColor: colors.primary + '44' }]}>
           <View style={[styles.avatarCircle, { backgroundColor: colors.primary + '22', borderColor: colors.primary + '66' }]}>
             <Text style={[styles.avatarInitial, { color: colors.primary }]}>
-              {displayName.charAt(0).toUpperCase()}
+              {avatarLetter}
             </Text>
           </View>
-          <Text style={[styles.displayName, { color: colors.foreground }]}>{displayName}</Text>
+          <Text style={[styles.displayName, { color: colors.foreground }]}>
+            {displayName || 'Complete your profile'}
+          </Text>
           {role === 'admin' && (
             <View style={[styles.adminBadge, { backgroundColor: colors.primary + '22', borderColor: colors.primary + '55' }]}>
               <Feather name="shield" size={11} color={colors.primary} />
@@ -123,6 +137,14 @@ export default function ProfileScreen() {
               : `Fill ${5 - completion.completed} more field${5 - completion.completed === 1 ? '' : 's'} to join tournaments`
             }
           </Text>
+          {!completion.canJoin && (
+            <View style={[styles.lockedBanner, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '33' }]}>
+              <Feather name="lock" size={13} color={colors.destructive} />
+              <Text style={[styles.lockedText, { color: colors.destructive }]}>
+                Tournament Joining Locked — Complete your profile first
+              </Text>
+            </View>
+          )}
           <TouchableOpacity
             style={[styles.editProfileInline, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '33' }]}
             onPress={() => router.push('/edit-profile' as never)}
@@ -130,6 +152,25 @@ export default function ProfileScreen() {
             <Feather name="edit-2" size={13} color={colors.primary} />
             <Text style={[styles.editProfileInlineText, { color: colors.primary }]}>Complete Profile</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Warning Box */}
+        <View style={[styles.warningCard, { backgroundColor: '#FF6B00' + '12', borderColor: '#FF6B00' + '44' }]}>
+          <View style={styles.warningHeader}>
+            <Feather name="alert-triangle" size={16} color="#FF6B00" />
+            <Text style={[styles.warningTitle, { color: '#FF6B00' }]}>⚠ Important — Prize Payment Info</Text>
+          </View>
+          <Text style={[styles.warningBody, { color: colors.mutedForeground }]}>
+            Prize payments may fail if your profile information is incorrect or incomplete. Please verify the following before participating:
+          </Text>
+          <View style={styles.warningList}>
+            {['Name', 'Phone Number', 'Free Fire UID', 'UPI ID'].map(field => (
+              <View key={field} style={styles.warningListItem}>
+                <View style={[styles.warningDot, { backgroundColor: '#FF6B00' }]} />
+                <Text style={[styles.warningListText, { color: colors.foreground }]}>{field}</Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         {/* Info rows */}
@@ -176,7 +217,7 @@ export default function ProfileScreen() {
           activeOpacity={0.8}
         >
           <Feather name="share-2" size={18} color={colors.accent} />
-          <Text style={[styles.actionBtnText, { color: colors.accent }]}>Share App</Text>
+          <Text style={[styles.actionBtnText, { color: colors.accent }]}>Share fftournament</Text>
         </TouchableOpacity>
 
         {/* Logout */}
@@ -202,7 +243,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingBottom: 10,
   },
-  title: { fontSize: 18, fontWeight: '700', letterSpacing: 2 },
+  title: { fontSize: 18, fontWeight: '700', letterSpacing: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
 
   avatarCard: {
@@ -214,7 +255,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   avatarInitial: { fontSize: 32, fontWeight: '800' },
-  displayName: { fontSize: 20, fontWeight: '700' },
+  displayName: { fontSize: 20, fontWeight: '700', textAlign: 'center' },
   adminBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, borderWidth: 1,
@@ -229,11 +270,27 @@ const styles = StyleSheet.create({
   barBg: { height: 8, borderRadius: 4, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 4 },
   completionStatus: { fontSize: 12, fontWeight: '600' },
+  lockedBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    padding: 10, borderRadius: 8, borderWidth: 1,
+  },
+  lockedText: { fontSize: 12, fontWeight: '600', flex: 1 },
   editProfileInline: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, alignSelf: 'flex-start',
   },
   editProfileInlineText: { fontSize: 13, fontWeight: '600' },
+
+  warningCard: {
+    borderRadius: 14, borderWidth: 1, padding: 14, gap: 8,
+  },
+  warningHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  warningTitle: { fontSize: 13, fontWeight: '700', flex: 1 },
+  warningBody: { fontSize: 12, lineHeight: 18 },
+  warningList: { gap: 5 },
+  warningListItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  warningDot: { width: 6, height: 6, borderRadius: 3 },
+  warningListText: { fontSize: 13, fontWeight: '600' },
 
   infoCard: { borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
   infoRow: {

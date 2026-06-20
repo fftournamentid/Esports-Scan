@@ -4,6 +4,7 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Tournament } from '@/context/TournamentContext';
 import { useColors } from '@/hooks/useColors';
+import type { JoinStatus } from '@/types';
 import { formatDateDisplay, formatTimeIST, getNextDailyOccurrenceIST } from '@/utils/time';
 import CountdownTimer from './CountdownTimer';
 import StatusBadge from './StatusBadge';
@@ -14,10 +15,10 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 interface Props {
   tournament: Tournament;
-  joined?: boolean;
+  joinStatus?: JoinStatus | null;
 }
 
-export default function TournamentCard({ tournament: t, joined }: Props) {
+export default function TournamentCard({ tournament: t, joinStatus }: Props) {
   const colors = useColors();
   const router = useRouter();
   const catColor = CATEGORY_COLORS[t.category] ?? colors.primary;
@@ -32,16 +33,65 @@ export default function TournamentCard({ tournament: t, joined }: Props) {
   const dateLabel = t.repeatDaily ? 'Daily' : formatDateDisplay(t.date);
   const totalPrize = (t.booyahPrize ?? 0) + (t.perKillPrize ?? 0) * (t.slots ?? 0);
 
+  const renderJoinBadge = () => {
+    if (!joinStatus) {
+      if (t.status === 'upcoming' && !isFull) {
+        return (
+          <TouchableOpacity
+            style={[styles.joinBtn, { backgroundColor: catColor }]}
+            onPress={() => router.push(`/tournament/${t.id}` as never)}
+            activeOpacity={0.8}
+          >
+            <Feather name="zap" size={13} color="#FFF" />
+            <Text style={styles.joinBtnText}>JOIN NOW</Text>
+          </TouchableOpacity>
+        );
+      }
+      return null;
+    }
+
+    if (joinStatus === 'rejected') {
+      return (
+        <TouchableOpacity
+          style={[styles.statusBanner, { backgroundColor: colors.destructive + '18', borderColor: colors.destructive + '44' }]}
+          onPress={() => router.push(`/tournament/${t.id}` as never)}
+          activeOpacity={0.8}
+        >
+          <Feather name="x-circle" size={12} color={colors.destructive} />
+          <Text style={[styles.statusBannerText, { color: colors.destructive }]}>❌ REJECTED — TAP TO REJOIN</Text>
+        </TouchableOpacity>
+      );
+    }
+
+    if (joinStatus === 'pending') {
+      return (
+        <View style={[styles.statusBanner, { backgroundColor: '#FF6B00' + '18', borderColor: '#FF6B00' + '44' }]}>
+          <Feather name="clock" size={12} color="#FF6B00" />
+          <Text style={[styles.statusBannerText, { color: '#FF6B00' }]}>⏳ PENDING VERIFICATION</Text>
+        </View>
+      );
+    }
+
+    if (joinStatus === 'approved' || joinStatus === 'room_released' || joinStatus === 'completed') {
+      return (
+        <View style={[styles.statusBanner, { backgroundColor: colors.success + '22', borderColor: colors.success + '33' }]}>
+          <Feather name="check-circle" size={12} color={colors.success} />
+          <Text style={[styles.statusBannerText, { color: colors.success }]}>✅ JOINED</Text>
+        </View>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={() => router.push(`/tournament/${t.id}` as never)}
       style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
     >
-      {/* Category color top strip */}
       <View style={[styles.topStrip, { backgroundColor: catColor }]} />
 
-      {/* Prize pool banner */}
       {totalPrize > 0 && (
         <View style={[styles.prizeBanner, { backgroundColor: catColor + '18' }]}>
           <Feather name="trending-up" size={10} color={catColor} />
@@ -71,7 +121,6 @@ export default function TournamentCard({ tournament: t, joined }: Props) {
           {t.name}
         </Text>
 
-        {/* Prize row */}
         <View style={[styles.prizeRow, { borderColor: colors.border, backgroundColor: colors.muted + '55' }]}>
           <View style={styles.prizeItem}>
             <Text style={[styles.prizeLabel, { color: colors.mutedForeground }]}>ENTRY</Text>
@@ -110,7 +159,6 @@ export default function TournamentCard({ tournament: t, joined }: Props) {
           )}
         </View>
 
-        {/* Results button for completed */}
         {isCompleted && t.results && t.results.length > 0 && (
           <TouchableOpacity
             style={[styles.resultsBtn, { backgroundColor: colors.gold + '18', borderColor: colors.gold + '44' }]}
@@ -122,23 +170,7 @@ export default function TournamentCard({ tournament: t, joined }: Props) {
           </TouchableOpacity>
         )}
 
-        {joined ? (
-          <View style={[styles.joinedBanner, { backgroundColor: colors.success + '22', borderColor: colors.success + '33' }]}>
-            <Feather name="check-circle" size={12} color={colors.success} />
-            <Text style={[styles.joinedText, { color: colors.success }]}>JOINED</Text>
-          </View>
-        ) : (
-          t.status === 'upcoming' && !isFull && (
-            <TouchableOpacity
-              style={[styles.joinBtn, { backgroundColor: catColor }]}
-              onPress={() => router.push(`/tournament/${t.id}` as never)}
-              activeOpacity={0.8}
-            >
-              <Feather name="zap" size={13} color="#FFF" />
-              <Text style={styles.joinBtnText}>JOIN NOW</Text>
-            </TouchableOpacity>
-          )
-        )}
+        {renderJoinBadge()}
       </View>
     </TouchableOpacity>
   );
@@ -174,14 +206,14 @@ const styles = StyleSheet.create({
   slotsTotal: { fontSize: 10 },
   resultsBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 9, borderRadius: 10, borderWidth: 1, marginTop: 2,
+    paddingVertical: 9, borderRadius: 10, borderWidth: 1, marginTop: 2, marginBottom: 6,
   },
   resultsBtnText: { fontSize: 12, fontWeight: '700', letterSpacing: 1 },
-  joinedBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'center',
-    padding: 8, borderRadius: 10, borderWidth: 1, marginTop: 2,
+  statusBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center',
+    padding: 9, borderRadius: 10, borderWidth: 1, marginTop: 2,
   },
-  joinedText: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  statusBannerText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
   joinBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     padding: 12, borderRadius: 10, marginTop: 2,

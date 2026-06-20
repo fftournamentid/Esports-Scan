@@ -87,7 +87,7 @@ export async function ensureUserProfile(user: FirebaseUser): Promise<void> {
   if (snap.exists()) return;
   await setDoc(ref, {
     uid: user.uid,
-    name: user.displayName ?? 'Player',
+    name: '',
     email: user.email?.toLowerCase() ?? '',
     freeFireUid: '',
     phoneNumber: '',

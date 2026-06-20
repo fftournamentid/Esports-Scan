@@ -19,6 +19,7 @@ import { useColors } from '@/hooks/useColors';
 import { logOut } from '@/services/authService';
 import { getAllUsersCount, subscribeAllRegistrations, subscribeWinnerPayments } from '@/services/adminService';
 import { formatDateDisplay, formatTimeIST, parseISTDateTime } from '@/utils/time';
+import type { JoinedTournament } from '@/types';
 
 type StatusFilter = 'all' | 'upcoming' | 'live' | 'completed' | 'cancelled';
 
@@ -84,7 +85,7 @@ export default function AdminDashboardScreen() {
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [totalPlayers, setTotalPlayers] = useState<number | null>(null);
-  const [allRegistrations, setAllRegistrations] = useState<{ status: string }[]>([]);
+  const [allRegistrations, setAllRegistrations] = useState<JoinedTournament[]>([]);
   const [unpaidWinners, setUnpaidWinners] = useState(0);
 
   useEffect(() => {
@@ -93,7 +94,7 @@ export default function AdminDashboardScreen() {
 
   useEffect(() => {
     const unsub = subscribeAllRegistrations((regs) => {
-      setAllRegistrations(regs.map(r => ({ status: r.status })));
+      setAllRegistrations(regs);
     });
     return unsub;
   }, []);
@@ -131,20 +132,32 @@ export default function AdminDashboardScreen() {
     return list.reverse();
   }, [statusFilter, activeTournaments, cancelledTournaments]);
 
-  const pendingVerifications = allRegistrations.filter(r => r.status === 'pending').length;
+  const pendingCount = allRegistrations.filter(r => r.status === 'pending').length;
+  const approvedCount = allRegistrations.filter(r =>
+    r.status === 'approved' || r.status === 'room_released' || r.status === 'completed'
+  ).length;
+  const rejectedCount = allRegistrations.filter(r => r.status === 'rejected').length;
+  const activeTournamentsCount = activeTournaments.filter(t => t.status === 'upcoming' || t.status === 'live').length;
 
-  const playerStats = [
-    { label: 'Players', value: totalPlayers !== null ? totalPlayers : '…', color: colors.primary, icon: 'users' as const },
-    { label: 'Total Joins', value: allRegistrations.length, color: colors.accent, icon: 'activity' as const },
-    { label: 'Pending Verif.', value: pendingVerifications, color: colors.live, icon: 'clock' as const },
-    { label: 'Unpaid Winners', value: unpaidWinners, color: colors.destructive, icon: 'dollar-sign' as const },
-  ];
+  const totalRevenue = useMemo(() => {
+    const approvedRegs = allRegistrations.filter(r =>
+      r.status === 'approved' || r.status === 'room_released' || r.status === 'completed'
+    );
+    return approvedRegs.reduce((sum, reg) => {
+      const tournament = tournaments.find(t => t.id === reg.tournamentId);
+      return sum + (tournament?.entryFee ?? 0);
+    }, 0);
+  }, [allRegistrations, tournaments]);
 
-  const tournamentStats = [
-    { label: 'Total', value: activeTournaments.length, color: colors.foreground },
-    { label: 'Published', value: activeTournaments.filter(t => t.published).length, color: colors.success },
-    { label: 'Live', value: activeTournaments.filter(t => t.status === 'live').length, color: colors.live },
-    { label: 'Cancelled', value: cancelledTournaments.length, color: colors.destructive },
+  const statsCards = [
+    { label: 'Total Players', value: totalPlayers !== null ? totalPlayers : '…', color: colors.primary, icon: 'users' as const },
+    { label: 'Total Registrations', value: allRegistrations.length, color: colors.accent, icon: 'activity' as const },
+    { label: 'Pending Verification', value: pendingCount, color: '#FF6B00', icon: 'clock' as const },
+    { label: 'Approved', value: approvedCount, color: colors.success, icon: 'check-circle' as const },
+    { label: 'Rejected', value: rejectedCount, color: colors.destructive, icon: 'x-circle' as const },
+    { label: 'Total Revenue', value: `₹${totalRevenue.toLocaleString('en-IN')}`, color: colors.gold, icon: 'trending-up' as const },
+    { label: 'Pending Payouts', value: unpaidWinners, color: colors.live, icon: 'dollar-sign' as const },
+    { label: 'Active Tournaments', value: activeTournamentsCount, color: colors.primary, icon: 'zap' as const },
   ];
 
   const menuItems = [
@@ -153,7 +166,7 @@ export default function AdminDashboardScreen() {
       label: 'Payment Verification',
       sub: 'Review & approve player registrations',
       color: colors.success,
-      badge: pendingVerifications > 0 ? pendingVerifications : 0,
+      badge: pendingCount > 0 ? pendingCount : 0,
       onPress: () => router.push('/admin/payment-verification'),
     },
     {
@@ -366,8 +379,8 @@ export default function AdminDashboardScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPadding + 8, borderBottomColor: colors.border }]}>
         <View>
-          <Text style={[styles.headerTitle, { color: colors.primary }]}>ADMIN PANEL</Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>First Booyah Tournament Manager</Text>
+          <Text style={[styles.headerTitle, { color: colors.primary }]}>fftournament</Text>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>Admin Panel</Text>
         </View>
         <TouchableOpacity
           onPress={handleLogout}
@@ -382,25 +395,15 @@ export default function AdminDashboardScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.list, { paddingBottom: Platform.OS === 'web' ? 100 : insets.bottom + 20 }]}
       >
-        {/* Player stats cards */}
-        <View style={styles.playerStatsGrid}>
-          {playerStats.map(s => (
-            <View key={s.label} style={[styles.playerStatCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={[styles.playerStatIcon, { backgroundColor: s.color + '18' }]}>
+        {/* Stats grid - 2 columns */}
+        <View style={styles.statsGrid}>
+          {statsCards.map(s => (
+            <View key={s.label} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.statCardIcon, { backgroundColor: s.color + '18' }]}>
                 <Feather name={s.icon} size={16} color={s.color} />
               </View>
-              <Text style={[styles.playerStatValue, { color: s.color }]}>{s.value}</Text>
-              <Text style={[styles.playerStatLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Tournament stats row */}
-        <View style={[styles.statsRow, { borderColor: colors.border }]}>
-          {tournamentStats.map(s => (
-            <View key={s.label} style={styles.statItem}>
-              <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
-              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
+              <Text style={[styles.statCardValue, { color: s.color }]}>{s.value}</Text>
+              <Text style={[styles.statCardLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
             </View>
           ))}
         </View>
@@ -482,7 +485,7 @@ export default function AdminDashboardScreen() {
           filteredTournaments.map(t => <TournamentCard key={t.id} t={t} />)
         ) : null}
 
-        {/* Cancelled section (shown in "all" or "cancelled" filter) */}
+        {/* Cancelled section */}
         {showCancelledSection && cancelledTournaments.length > 0 && (
           <>
             {statusFilter === 'all' && (
@@ -532,21 +535,13 @@ export default function AdminDashboardScreen() {
                       onPress={() => handleDelete(t)}
                     >
                       <Feather name="trash-2" size={13} color={colors.destructive} />
-                      <Text style={[styles.actionText, { color: colors.destructive }]}>Delete Now</Text>
+                      <Text style={[styles.actionText, { color: colors.destructive }]}>Delete</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               </View>
             ))}
           </>
-        )}
-
-        {/* Show cancelled when filter is "cancelled" and no separate section was shown */}
-        {statusFilter === 'cancelled' && cancelledTournaments.length === 0 && (
-          <View style={styles.empty}>
-            <Feather name="slash" size={44} color={colors.border} />
-            <Text style={[styles.emptyTitle, { color: colors.mutedForeground }]}>No cancelled tournaments</Text>
-          </View>
         )}
       </ScrollView>
     </View>
@@ -556,93 +551,101 @@ export default function AdminDashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 16, fontWeight: '700', letterSpacing: 2 },
-  headerSub: { fontSize: 11, marginTop: 2 },
-  logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1 },
-  logoutText: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  list: { paddingHorizontal: 16 },
-
-  // Player stats grid
-  playerStatsGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14, marginBottom: 6,
+  headerTitle: { fontSize: 20, fontWeight: '800', letterSpacing: 1 },
+  headerSub: { fontSize: 11, marginTop: 1 },
+  logoutBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
   },
-  playerStatCard: {
-    flex: 1, minWidth: '44%', borderRadius: 12, borderWidth: 1,
-    padding: 12, gap: 4, alignItems: 'center',
+  logoutText: { fontSize: 12, fontWeight: '700' },
+  list: { paddingHorizontal: 16, paddingTop: 14, gap: 10 },
+
+  statsGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 4,
   },
-  playerStatIcon: { width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  playerStatValue: { fontSize: 22, fontWeight: '800' },
-  playerStatLabel: { fontSize: 10, fontWeight: '600', letterSpacing: 0.3, textAlign: 'center' },
+  statCard: {
+    borderRadius: 14, borderWidth: 1, padding: 14,
+    alignItems: 'center', gap: 6,
+    width: '47%', flexGrow: 1,
+  },
+  statCardIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  statCardValue: { fontSize: 22, fontWeight: '800' },
+  statCardLabel: { fontSize: 10, fontWeight: '600', textAlign: 'center', lineHeight: 14 },
 
-  // Tournament stats row
-  statsRow: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, marginBottom: 14, overflow: 'hidden' },
-  statItem: { flex: 1, alignItems: 'center', paddingVertical: 10, gap: 2 },
-  statValue: { fontSize: 20, fontWeight: '700' },
-  statLabel: { fontSize: 10, fontWeight: '600', letterSpacing: 0.5 },
-
-  // Menu
-  menuSection: { gap: 8, marginBottom: 16 },
-  menuCard: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, borderWidth: 1, padding: 14 },
-  menuIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  menuSection: { gap: 8 },
+  menuCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    borderRadius: 14, borderWidth: 1, padding: 14,
+  },
+  menuIcon: {
+    width: 44, height: 44, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+  },
   menuText: { flex: 1 },
   menuLabel: { fontSize: 14, fontWeight: '700' },
-  menuSub: { fontSize: 11, marginTop: 2 },
+  menuSub: { fontSize: 12, marginTop: 2 },
   menuBadge: {
-    minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center',
-    justifyContent: 'center', paddingHorizontal: 4, marginRight: 4,
+    minWidth: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
   },
-  menuBadgeText: { fontSize: 11, fontWeight: '800', color: '#FFF' },
+  menuBadgeText: { fontSize: 11, fontWeight: '800', color: '#000' },
 
-  // Section header
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginTop: 8,
+  },
   sectionTitle: { fontSize: 16, fontWeight: '700' },
-  createBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  createBtnText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+  createBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+  },
+  createBtnText: { fontSize: 13, fontWeight: '700' },
 
-  // Filter chips
-  filterScroll: { marginBottom: 12 },
-  filterChips: { flexDirection: 'row', gap: 8, paddingRight: 4 },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
-  filterChipText: { fontSize: 12, fontWeight: '700' },
+  filterScroll: { flexGrow: 0 },
+  filterChips: { gap: 8, paddingBottom: 4 },
+  filterChip: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1,
+  },
+  filterChipText: { fontSize: 12, fontWeight: '600' },
 
-  // Empty
-  empty: { alignItems: 'center', paddingVertical: 48, gap: 8 },
+  card: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+  cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, paddingBottom: 6 },
+  cardNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  cardName: { fontSize: 14, fontWeight: '700', flex: 1 },
+  cardMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingBottom: 10 },
+  cardMetaText: { fontSize: 11 },
+  metaRight: {},
+  publishRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  publishDot: { width: 7, height: 7, borderRadius: 4 },
+  publishText: { fontSize: 11, fontWeight: '600' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5, borderWidth: 1 },
+  chipText: { fontSize: 9, fontWeight: '700', letterSpacing: 0.3 },
+  feeRow: { flexDirection: 'row', borderTopWidth: 1, borderBottomWidth: 1 },
+  feeItem: { flex: 1, alignItems: 'center', paddingVertical: 8 },
+  feeLabel: { fontSize: 9, fontWeight: '600', letterSpacing: 0.5, marginBottom: 2 },
+  feeValue: { fontSize: 13, fontWeight: '700' },
+  feeDivider: { width: 1 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 12, borderTopWidth: 1 },
+  action: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  actionText: { fontSize: 12, fontWeight: '600' },
+
+  empty: { alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 48 },
   emptyTitle: { fontSize: 15, fontWeight: '600' },
   emptyHint: { fontSize: 12 },
 
-  // Tournament card
-  card: { borderRadius: 14, borderWidth: 1, marginBottom: 12, overflow: 'hidden' },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, paddingBottom: 6 },
-  cardNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 8 },
-  cardName: { fontSize: 14, fontWeight: '700', flex: 1 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4, borderWidth: 1 },
-  chipText: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
-  cardMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 10 },
-  cardMetaText: { fontSize: 11, flex: 1, paddingHorizontal: 12, paddingBottom: 4 },
-  metaRight: { flexShrink: 0 },
-  publishRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  publishDot: { width: 6, height: 6, borderRadius: 3 },
-  publishText: { fontSize: 11, fontWeight: '600' },
-  feeRow: { flexDirection: 'row', borderTopWidth: 1, borderBottomWidth: 1 },
-  feeItem: { flex: 1, alignItems: 'center', paddingVertical: 10 },
-  feeDivider: { width: 1 },
-  feeLabel: { fontSize: 9, fontWeight: '600', letterSpacing: 0.5, marginBottom: 3 },
-  feeValue: { fontSize: 13, fontWeight: '700' },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 10, borderTopWidth: 1 },
-  action: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 6 },
-  actionText: { fontSize: 11, fontWeight: '600' },
-
-  // Cancelled section
-  cancelledSectionHeader: { marginTop: 8, marginBottom: 10, paddingTop: 16, borderTopWidth: 1 },
+  cancelledSectionHeader: { paddingTop: 16, marginTop: 8, borderTopWidth: 1, gap: 4 },
   cancelledTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   cancelledDot: { width: 8, height: 8, borderRadius: 4 },
-  cancelledSub: { fontSize: 11, marginTop: 3, marginLeft: 16 },
-  cancelledStripe: { height: 3, width: '100%' },
-  cancelledCardContent: { padding: 12, gap: 4 },
-  cancelledCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
-  cancelCountdown: { fontSize: 11, fontWeight: '600', marginTop: 2 },
-  cancelledActions: { flexDirection: 'row', gap: 8, paddingTop: 10, marginTop: 6, borderTopWidth: 1 },
+  cancelledSub: { fontSize: 11 },
+  cancelledStripe: { height: 3 },
+  cancelledCardContent: { padding: 14, gap: 6 },
+  cancelledCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cancelCountdown: { fontSize: 12, fontWeight: '600' },
+  cancelledActions: { flexDirection: 'row', gap: 8, paddingTop: 10, marginTop: 4, borderTopWidth: 1 },
 });

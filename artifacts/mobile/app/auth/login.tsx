@@ -37,8 +37,6 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await signIn(email, password);
-      // Do NOT navigate here — AuthGate reads userProfile.role and routes
-      // admin → /admin-dashboard, user → /
     } catch (e: unknown) {
       setLoading(false);
       const msg = (e as { code?: string; message?: string }).code ?? '';
@@ -66,7 +64,7 @@ export default function LoginScreen() {
       >
         <View style={s.logoWrap}>
           <Image source={require('@/assets/images/icon.png')} style={s.logo} />
-          <Text style={[s.brand, { color: colors.primary }]}>FIRST BOOYAH</Text>
+          <Text style={[s.brand, { color: colors.primary }]}>fftournament</Text>
           <Text style={[s.brandSub, { color: colors.mutedForeground }]}>TOURNAMENT HUB</Text>
         </View>
 
@@ -163,7 +161,7 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
     scroll: { flexGrow: 1, paddingHorizontal: 24 },
     logoWrap: { alignItems: 'center', marginBottom: 32, gap: 6 },
     logo: { width: 72, height: 72, borderRadius: 16, marginBottom: 8 },
-    brand: { fontSize: 22, fontWeight: '800', letterSpacing: 3 },
+    brand: { fontSize: 26, fontWeight: '800', letterSpacing: 2 },
     brandSub: { fontSize: 11, letterSpacing: 4, marginTop: -4 },
     card: {
       borderRadius: 20, borderWidth: 1, padding: 24, gap: 16,
