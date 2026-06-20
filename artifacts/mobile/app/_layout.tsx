@@ -1,3 +1,4 @@
+import "@/utils/webErrorCapture";
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -31,6 +32,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { firebaseUser, userProfile, authLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  console.log('[AuthGate] render — authLoading:', authLoading, '| user:', firebaseUser?.uid ?? null, '| segments:', JSON.stringify(segments));
 
   useEffect(() => {
     if (authLoading) return;
@@ -80,7 +83,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 function RootLayoutNav() {
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: '#0D0D14' }}>
       <AuthGate>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />

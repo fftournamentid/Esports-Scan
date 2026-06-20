@@ -31,6 +31,9 @@ export class ErrorBoundary extends Component<
 
   componentDidCatch(error: Error, info: { componentStack: string }): void {
     this.setState({ componentStack: info.componentStack });
+    console.error('[ErrorBoundary] CAUGHT ERROR:', error.message);
+    console.error('[ErrorBoundary] STACK:', error.stack);
+    console.error('[ErrorBoundary] COMPONENT STACK:', info.componentStack);
     if (typeof this.props.onError === "function") {
       this.props.onError(error, info.componentStack);
     }

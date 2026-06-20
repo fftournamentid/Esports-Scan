@@ -30,31 +30,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function loadProfile(user: FirebaseUser): Promise<void> {
     try {
+      console.log('[AuthContext] loadProfile start uid:', user.uid);
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Profile load timeout')), 10000)
       );
       let profile = await Promise.race([getUserProfile(user.uid), timeout]);
+      console.log('[AuthContext] getUserProfile result:', profile ? 'found' : 'null');
       if (!profile) {
         await ensureUserProfile(user);
         profile = await Promise.race([getUserProfile(user.uid), timeout]);
+        console.log('[AuthContext] after ensureUserProfile, profile:', profile ? 'found' : 'null');
       }
       setUserProfile(profile);
-    } catch {
+    } catch (e) {
+      console.error('[AuthContext] loadProfile ERROR:', (e as Error).message);
       setUserProfile(null);
     }
   }
 
   useEffect(() => {
+    console.log('[AuthContext] subscribing to onAuthStateChanged');
     const unsub = onAuthStateChanged(auth, async (user) => {
+      console.log('[AuthContext] onAuthStateChanged fired, user:', user?.uid ?? null);
       if (!user) {
+        console.log('[AuthContext] no user → setAuthLoading(false)');
         setFirebaseUser(null);
         setUserProfile(null);
         setAuthLoading(false);
         return;
       }
+      console.log('[AuthContext] user found, loading profile...');
       setAuthLoading(true);
       setFirebaseUser(user);
       await loadProfile(user);
+      console.log('[AuthContext] profile loaded → setAuthLoading(false)');
       setAuthLoading(false);
     });
     return unsub;
