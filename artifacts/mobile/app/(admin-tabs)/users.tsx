@@ -42,7 +42,9 @@ export default function UsersTab() {
       u.name.toLowerCase().includes(q) ||
       u.phoneNumber?.toLowerCase().includes(q) ||
       u.freeFireUid?.toLowerCase().includes(q) ||
-      u.email?.toLowerCase().includes(q),
+      u.email?.toLowerCase().includes(q) ||
+      u.whatsappNumber?.toLowerCase().includes(q) ||
+      u.upiId?.toLowerCase().includes(q),
     );
   }, [users, query]);
 

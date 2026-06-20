@@ -195,6 +195,25 @@ export default function AdminDashboardTab() {
           </View>
         )}
 
+        {/* Announcements Quick Link */}
+        <SectionTitle label="ANNOUNCEMENTS" colors={colors} />
+        <TouchableOpacity
+          style={[styles.announcementsCard, { backgroundColor: colors.card, borderColor: colors.primary + '33' }]}
+          onPress={() => router.push('/admin/announcements' as never)}
+          activeOpacity={0.85}
+        >
+          <View style={[styles.announcementsIcon, { backgroundColor: colors.primary + '18' }]}>
+            <Feather name="megaphone" size={22} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.announcementsTitle, { color: colors.foreground }]}>Manage Announcements</Text>
+            <Text style={[styles.announcementsSub, { color: colors.mutedForeground }]}>
+              Create banners, pin notices, and toggle visibility for players
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={18} color={colors.primary} />
+        </TouchableOpacity>
+
         {/* Recent Tournaments */}
         <SectionTitle label="RECENT TOURNAMENTS" colors={colors} />
         {recentTournaments.length === 0 ? (
@@ -342,6 +361,17 @@ const styles = StyleSheet.create({
     alignItems: 'center', gap: 10,
   },
   emptyText: { fontSize: 14, fontWeight: '600' },
+
+  announcementsCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    borderRadius: 14, borderWidth: 1, padding: 14,
+  },
+  announcementsIcon: {
+    width: 48, height: 48, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  announcementsTitle: { fontSize: 14, fontWeight: '700', marginBottom: 3 },
+  announcementsSub: { fontSize: 11, lineHeight: 16 },
 
   recentCard: { borderRadius: 14, borderWidth: 1, overflow: 'hidden', marginBottom: 10 },
   recentStrip: { height: 3 },

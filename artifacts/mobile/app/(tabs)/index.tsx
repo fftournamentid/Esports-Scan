@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AnnouncementCarousel from '@/components/AnnouncementCarousel';
 import DropdownPicker from '@/components/DropdownPicker';
 import TournamentCard from '@/components/TournamentCard';
 import { RecentWinner, TournamentCategory, TournamentStatus, useTournament } from '@/context/TournamentContext';
@@ -163,9 +164,12 @@ export default function HomeScreen() {
 
   const topPadding = Platform.OS === 'web' ? 67 : insets.top;
 
-  const ListHeader = recentWinners.length > 0
-    ? () => <RecentWinnersSection winners={recentWinners} />
-    : undefined;
+  const ListHeader = () => (
+    <>
+      <AnnouncementCarousel />
+      {recentWinners.length > 0 && <RecentWinnersSection winners={recentWinners} />}
+    </>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
