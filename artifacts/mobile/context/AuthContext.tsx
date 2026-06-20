@@ -30,10 +30,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function loadProfile(user: FirebaseUser): Promise<void> {
     try {
-      let profile = await getUserProfile(user.uid);
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Profile load timeout')), 10000)
+      );
+      let profile = await Promise.race([getUserProfile(user.uid), timeout]);
       if (!profile) {
         await ensureUserProfile(user);
-        profile = await getUserProfile(user.uid);
+        profile = await Promise.race([getUserProfile(user.uid), timeout]);
       }
       setUserProfile(profile);
     } catch {
