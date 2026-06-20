@@ -1,5 +1,4 @@
 import { Feather } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { Redirect, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -17,73 +16,21 @@ import { useAuth } from '@/context/AuthContext';
 import { Tournament, useTournament } from '@/context/TournamentContext';
 import { useColors } from '@/hooks/useColors';
 import { logOut } from '@/services/authService';
-import { getAllUsersCount, subscribeAllRegistrations, subscribeWinnerPayments } from '@/services/adminService';
-import { formatDateDisplay, formatTimeIST, parseISTDateTime } from '@/utils/time';
+import {
+  getAllUsersCount,
+  subscribeAllRegistrations,
+  subscribeWinnerPayments,
+} from '@/services/adminService';
+import { formatDateDisplay, formatTimeIST } from '@/utils/time';
 import type { JoinedTournament } from '@/types';
-
-type StatusFilter = 'all' | 'upcoming' | 'live' | 'completed' | 'cancelled';
-
-function getRoomStatusLabel(t: Tournament): { label: string; color: string } | null {
-  if (!t.roomId || !t.roomPassword) return null;
-  if (t.roomReleaseTime) {
-    try {
-      const relTime = new Date(t.roomReleaseTime).toLocaleTimeString('en-IN', {
-        hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata',
-      });
-      return { label: `Released ${relTime.toUpperCase()}`, color: 'success' };
-    } catch {
-      return { label: 'Released', color: 'success' };
-    }
-  }
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-  const matchDate = (t.repeatDaily ? today : t.date) || today;
-  if (!t.time) return { label: 'Release Pending', color: 'live' };
-  const releaseMs = parseISTDateTime(matchDate, t.time).getTime() - 30 * 60 * 1000;
-  if (!isFinite(releaseMs) || Date.now() >= releaseMs) return { label: 'Release Pending', color: 'live' };
-  try {
-    const releaseTime = new Date(releaseMs).toLocaleTimeString('en-IN', {
-      hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata',
-    });
-    return { label: `Auto-Release ${releaseTime.toUpperCase()}`, color: 'primary' };
-  } catch {
-    return { label: 'Auto-Release Scheduled', color: 'primary' };
-  }
-}
-
-function getCancelledCountdown(cancelledAt: string): string {
-  const elapsed = Date.now() - new Date(cancelledAt).getTime();
-  const remaining = 24 * 60 * 60 * 1000 - elapsed;
-  if (remaining <= 0) return 'Deleting...';
-  const h = Math.floor(remaining / (60 * 60 * 1000));
-  const m = Math.floor((remaining % (60 * 60 * 1000)) / 60000);
-  return `Auto-deletes in ${h}h ${m}m`;
-}
-
-function getTournamentStartMs(t: Tournament): number {
-  try {
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-    const dateStr = t.repeatDaily ? today : t.date;
-    if (!dateStr || !t.time) return Infinity;
-    return parseISTDateTime(dateStr, t.time).getTime();
-  } catch {
-    return Infinity;
-  }
-}
 
 export default function AdminDashboardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { userProfile, authLoading } = useAuth();
-  const {
-    tournaments,
-    deleteTournament,
-    updateTournament,
-    cancelTournament,
-    restoreTournament,
-  } = useTournament();
+  const { userProfile, authLoading, logout } = useAuth();
+  const { tournaments, cancelTournament } = useTournament();
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [totalPlayers, setTotalPlayers] = useState<number | null>(null);
   const [allRegistrations, setAllRegistrations] = useState<JoinedTournament[]>([]);
   const [unpaidWinners, setUnpaidWinners] = useState(0);
@@ -93,9 +40,7 @@ export default function AdminDashboardScreen() {
   }, []);
 
   useEffect(() => {
-    const unsub = subscribeAllRegistrations((regs) => {
-      setAllRegistrations(regs);
-    });
+    const unsub = subscribeAllRegistrations(setAllRegistrations);
     return unsub;
   }, []);
 
@@ -111,541 +56,522 @@ export default function AdminDashboardScreen() {
 
   const topPadding = Platform.OS === 'web' ? 67 : insets.top;
 
+  // ─── Computed stats ────────────────────────────────────────────────
   const activeTournaments = tournaments.filter(t => t.status !== 'cancelled');
-  const cancelledTournaments = [...tournaments].filter(t => t.status === 'cancelled').reverse();
-
-  const filteredTournaments = useMemo(() => {
-    let list: Tournament[];
-    if (statusFilter === 'all') {
-      list = [...activeTournaments];
-    } else if (statusFilter === 'cancelled') {
-      list = [...cancelledTournaments];
-    } else if (statusFilter === 'completed') {
-      list = activeTournaments.filter(t => t.status === 'completed' || t.status === 'closed');
-    } else {
-      list = activeTournaments.filter(t => t.status === statusFilter);
-    }
-
-    if (statusFilter === 'upcoming') {
-      return list.sort((a, b) => getTournamentStartMs(a) - getTournamentStartMs(b));
-    }
-    return list.reverse();
-  }, [statusFilter, activeTournaments, cancelledTournaments]);
+  const liveTournaments = activeTournaments.filter(t => t.status !== 'completed' && t.status !== 'closed');
 
   const pendingCount = allRegistrations.filter(r => r.status === 'pending').length;
   const approvedCount = allRegistrations.filter(r =>
-    r.status === 'approved' || r.status === 'room_released' || r.status === 'completed'
+    r.status === 'approved' || r.status === 'room_released' || r.status === 'completed',
   ).length;
   const rejectedCount = allRegistrations.filter(r => r.status === 'rejected').length;
-  const activeTournamentsCount = activeTournaments.filter(t => t.status === 'upcoming' || t.status === 'live').length;
+  const activeCount = activeTournaments.filter(t => t.status === 'upcoming' || t.status === 'live').length;
 
   const totalRevenue = useMemo(() => {
-    const approvedRegs = allRegistrations.filter(r =>
-      r.status === 'approved' || r.status === 'room_released' || r.status === 'completed'
-    );
-    return approvedRegs.reduce((sum, reg) => {
-      const tournament = tournaments.find(t => t.id === reg.tournamentId);
-      return sum + (tournament?.entryFee ?? 0);
-    }, 0);
+    return allRegistrations
+      .filter(r => r.status === 'approved' || r.status === 'room_released' || r.status === 'completed')
+      .reduce((sum, reg) => {
+        const t = tournaments.find(t => t.id === reg.tournamentId);
+        return sum + (t?.entryFee ?? 0);
+      }, 0);
   }, [allRegistrations, tournaments]);
 
-  const statsCards = [
-    { label: 'Total Players', value: totalPlayers !== null ? totalPlayers : '…', color: colors.primary, icon: 'users' as const },
-    { label: 'Total Registrations', value: allRegistrations.length, color: colors.accent, icon: 'activity' as const },
-    { label: 'Pending Verification', value: pendingCount, color: '#FF6B00', icon: 'clock' as const },
-    { label: 'Approved', value: approvedCount, color: colors.success, icon: 'check-circle' as const },
-    { label: 'Rejected', value: rejectedCount, color: colors.destructive, icon: 'x-circle' as const },
-    { label: 'Total Revenue', value: `₹${totalRevenue.toLocaleString('en-IN')}`, color: colors.gold, icon: 'trending-up' as const },
-    { label: 'Pending Payouts', value: unpaidWinners, color: colors.live, icon: 'dollar-sign' as const },
-    { label: 'Active Tournaments', value: activeTournamentsCount, color: colors.primary, icon: 'zap' as const },
+  const totalPrizePool = useMemo(() => {
+    return activeTournaments.reduce((sum, t) => sum + (t.booyahPrize ?? 0), 0);
+  }, [activeTournaments]);
+
+  // ─── Stats Grid data ───────────────────────────────────────────────
+  const stats = [
+    { label: 'Total Players', value: totalPlayers !== null ? `${totalPlayers}` : '…', icon: 'users' as const, color: colors.primary },
+    { label: 'Total Registrations', value: `${allRegistrations.length}`, icon: 'activity' as const, color: colors.accent },
+    { label: 'Pending Verification', value: `${pendingCount}`, icon: 'clock' as const, color: '#FF6B00' },
+    { label: 'Approved', value: `${approvedCount}`, icon: 'check-circle' as const, color: colors.success },
+    { label: 'Rejected', value: `${rejectedCount}`, icon: 'x-circle' as const, color: colors.destructive },
+    { label: 'Active Tournaments', value: `${activeCount}`, icon: 'zap' as const, color: colors.live },
+    { label: 'Total Revenue', value: `₹${totalRevenue.toLocaleString('en-IN')}`, icon: 'trending-up' as const, color: colors.gold },
+    { label: 'Pending Payouts', value: `${unpaidWinners}`, icon: 'dollar-sign' as const, color: colors.destructive },
   ];
 
-  const menuItems = [
+  // ─── Quick Actions ─────────────────────────────────────────────────
+  const quickActions = [
+    {
+      icon: 'plus-circle' as const,
+      label: 'Create\nTournament',
+      color: colors.primary,
+      bg: colors.primary + '18',
+      border: colors.primary + '33',
+      onPress: () => router.push('/admin/create-tournament' as never),
+    },
     {
       icon: 'check-square' as const,
-      label: 'Payment Verification',
-      sub: 'Review & approve player registrations',
+      label: 'Verify\nPayments',
       color: colors.success,
-      badge: pendingCount > 0 ? pendingCount : 0,
-      onPress: () => router.push('/admin/payment-verification'),
+      bg: colors.success + '18',
+      border: colors.success + '33',
+      badge: pendingCount,
+      onPress: () => router.push('/admin/payment-verification' as never),
     },
     {
       icon: 'dollar-sign' as const,
-      label: 'Winner Payments',
-      sub: 'Track and mark prize payments',
+      label: 'Winner\nPayments',
       color: colors.gold,
-      badge: unpaidWinners > 0 ? unpaidWinners : 0,
-      onPress: () => router.push('/admin/winner-payments'),
+      bg: colors.gold + '18',
+      border: colors.gold + '33',
+      badge: unpaidWinners,
+      onPress: () => router.push('/admin/winner-payments' as never),
     },
     {
       icon: 'users' as const,
-      label: 'User Management',
-      sub: 'View all players and their activity',
+      label: 'User\nManagement',
       color: colors.accent,
-      badge: 0,
-      onPress: () => router.push('/admin/user-management'),
-    },
-    {
-      icon: 'credit-card' as const,
-      label: 'Payment & QR / UPI Settings',
-      sub: 'Update UPI ID, QR code, payment instructions',
-      color: colors.primary,
-      badge: 0,
-      onPress: () => router.push('/admin/payment-settings'),
-    },
-    {
-      icon: 'settings' as const,
-      label: 'Admin Settings',
-      sub: 'UPI, WhatsApp, email, Telegram, backup',
-      color: colors.mutedForeground,
-      badge: 0,
-      onPress: () => router.push('/admin/app-settings'),
+      bg: colors.accent + '18',
+      border: colors.accent + '33',
+      onPress: () => router.push('/admin/user-management' as never),
     },
   ];
 
-  const handleDelete = (t: Tournament) => {
-    Alert.alert('Delete Tournament', `Permanently delete "${t.name}"? This cannot be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive',
-        onPress: async () => {
-          await deleteTournament(t.id);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        },
-      },
-    ]);
-  };
+  // ─── Analytics row ─────────────────────────────────────────────────
+  const analytics = [
+    { label: 'Total Regs.', value: allRegistrations.length, color: colors.foreground },
+    { label: 'Pending', value: pendingCount, color: '#FF6B00' },
+    { label: 'Approved', value: approvedCount, color: colors.success },
+    { label: 'Rejected', value: rejectedCount, color: colors.destructive },
+    { label: 'Revenue', value: `₹${totalRevenue.toLocaleString('en-IN')}`, color: colors.gold },
+    { label: 'Prize Pool', value: `₹${totalPrizePool.toLocaleString('en-IN')}`, color: colors.primary },
+  ];
 
-  const handleCancel = (t: Tournament) => {
+  // ─── System Settings ───────────────────────────────────────────────
+  const settingsItems = [
+    { icon: 'credit-card' as const, label: 'UPI & Payment Settings', color: colors.primary, onPress: () => router.push('/admin/payment-settings' as never) },
+    { icon: 'message-circle' as const, label: 'WhatsApp Settings', color: '#25D366', onPress: () => router.push('/admin/app-settings' as never) },
+    { icon: 'mail' as const, label: 'Email Settings', color: colors.accent, onPress: () => router.push('/admin/app-settings' as never) },
+    { icon: 'download' as const, label: 'Backup & Export Data', color: colors.mutedForeground, onPress: () => router.push('/admin/app-settings' as never) },
+  ];
+
+  const handleCancelTournament = (t: Tournament) => {
     Alert.alert(
       'Cancel Tournament',
-      `Cancel "${t.name}"?\n\nIt will be removed from the player view and auto-deleted after 24 hours. You can restore it before then.`,
+      `Cancel "${t.name}"?`,
       [
         { text: 'Back', style: 'cancel' },
         {
-          text: 'Cancel Tournament',
+          text: 'Cancel',
           style: 'destructive',
-          onPress: async () => {
-            await cancelTournament(t.id);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          },
+          onPress: async () => { await cancelTournament(t.id); },
         },
-      ]
+      ],
     );
   };
 
-  const handleRestore = async (t: Tournament) => {
-    await restoreTournament(t.id);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  const handleLogout = () => {
+    Alert.alert('Log Out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Log Out', style: 'destructive', onPress: () => logout() },
+    ]);
   };
-
-  const handleTogglePublish = async (t: Tournament) => {
-    await updateTournament(t.id, { published: !t.published });
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
-  const handleLogout = async () => { await logOut(); };
-
-  const STATUS_FILTER_OPTIONS: { key: StatusFilter; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'upcoming', label: 'Upcoming' },
-    { key: 'live', label: 'Live' },
-    { key: 'completed', label: 'Completed' },
-    { key: 'cancelled', label: 'Cancelled' },
-  ];
-
-  const TournamentCard = ({ t }: { t: Tournament }) => {
-    const roomStatus = getRoomStatusLabel(t);
-    const statusColor = roomStatus?.color === 'success' ? colors.success
-      : roomStatus?.color === 'live' ? colors.live
-      : colors.primary;
-
-    return (
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.cardTop}>
-          <View style={styles.cardNameRow}>
-            <Text style={[styles.cardName, { color: colors.foreground }]} numberOfLines={1}>{t.name}</Text>
-            {t.repeatDaily && (
-              <View style={[styles.chip, { backgroundColor: colors.accent + '22', borderColor: colors.accent + '44' }]}>
-                <Feather name="repeat" size={9} color={colors.accent} />
-                <Text style={[styles.chipText, { color: colors.accent }]}>DAILY</Text>
-              </View>
-            )}
-          </View>
-          <StatusBadge type="tournament" status={t.status} />
-        </View>
-
-        <View style={styles.cardMeta}>
-          <Text style={[styles.cardMetaText, { color: colors.mutedForeground }]}>
-            {t.category} · {t.repeatDaily ? 'Daily' : formatDateDisplay(t.date)} · {formatTimeIST(t.time)} IST
-          </Text>
-          <View style={styles.metaRight}>
-            {roomStatus ? (
-              <View style={[styles.chip, { backgroundColor: statusColor + '22', borderColor: statusColor + '44' }]}>
-                <Feather name={roomStatus.color === 'success' ? 'unlock' : 'clock'} size={9} color={statusColor} />
-                <Text style={[styles.chipText, { color: statusColor }]}>{roomStatus.label}</Text>
-              </View>
-            ) : (
-              <View style={styles.publishRow}>
-                <View style={[styles.publishDot, { backgroundColor: t.published ? colors.success : colors.border }]} />
-                <Text style={[styles.publishText, { color: t.published ? colors.success : colors.mutedForeground }]}>
-                  {t.published ? 'Published' : 'Draft'}
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        <View style={[styles.feeRow, { borderColor: colors.border }]}>
-          <View style={styles.feeItem}>
-            <Text style={[styles.feeLabel, { color: colors.mutedForeground }]}>ENTRY</Text>
-            <Text style={[styles.feeValue, { color: colors.primary }]}>₹{t.entryFee}</Text>
-          </View>
-          <View style={[styles.feeDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.feeItem}>
-            <Text style={[styles.feeLabel, { color: colors.mutedForeground }]}>PER KILL</Text>
-            <Text style={[styles.feeValue, { color: colors.gold }]}>₹{t.perKillPrize ?? 0}</Text>
-          </View>
-          <View style={[styles.feeDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.feeItem}>
-            <Text style={[styles.feeLabel, { color: colors.mutedForeground }]}>BOOYAH</Text>
-            <Text style={[styles.feeValue, { color: colors.success }]}>₹{t.booyahPrize ?? 0}</Text>
-          </View>
-          <View style={[styles.feeDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.feeItem}>
-            <Text style={[styles.feeLabel, { color: colors.mutedForeground }]}>SLOTS</Text>
-            <Text style={[styles.feeValue, { color: colors.foreground }]}>{t.slotsUsed}/{t.slots}</Text>
-          </View>
-        </View>
-
-        <View style={[styles.actions, { borderTopColor: colors.border }]}>
-          <TouchableOpacity
-            style={[styles.action, { backgroundColor: colors.primary + '18' }]}
-            onPress={() => router.push({ pathname: '/admin/create-tournament', params: { id: t.id } } as never)}
-          >
-            <Feather name="edit-2" size={13} color={colors.primary} />
-            <Text style={[styles.actionText, { color: colors.primary }]}>Edit</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.action, { backgroundColor: colors.accent + '18' }]}
-            onPress={() => router.push({ pathname: '/admin/room-settings/[id]', params: { id: t.id } } as never)}
-          >
-            <Feather name="unlock" size={13} color={colors.accent} />
-            <Text style={[styles.actionText, { color: colors.accent }]}>Room</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.action, { backgroundColor: colors.gold + '18' }]}
-            onPress={() => router.push({ pathname: '/admin/result-settings/[id]', params: { id: t.id } } as never)}
-          >
-            <Feather name="award" size={13} color={colors.gold} />
-            <Text style={[styles.actionText, { color: colors.gold }]}>Results</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.action, { backgroundColor: (t.published ? colors.orange : colors.success) + '18' }]}
-            onPress={() => handleTogglePublish(t)}
-          >
-            <Feather name={t.published ? 'eye-off' : 'eye'} size={13} color={t.published ? colors.orange : colors.success} />
-            <Text style={[styles.actionText, { color: t.published ? colors.orange : colors.success }]}>
-              {t.published ? 'Unpublish' : 'Publish'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.action, { backgroundColor: colors.live + '18' }]}
-            onPress={() => handleCancel(t)}
-          >
-            <Feather name="slash" size={13} color={colors.live} />
-            <Text style={[styles.actionText, { color: colors.live }]}>Cancel</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.action, { backgroundColor: colors.destructive + '18' }]}
-            onPress={() => handleDelete(t)}
-          >
-            <Feather name="trash-2" size={13} color={colors.destructive} />
-            <Text style={[styles.actionText, { color: colors.destructive }]}>Delete</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
-
-  const showCancelledSection = statusFilter === 'all' || statusFilter === 'cancelled';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPadding + 8, borderBottomColor: colors.border }]}>
+      {/* ─── Header ───────────────────────────────────────────────── */}
+      <View style={[styles.topBar, { paddingTop: topPadding + 8, borderBottomColor: colors.border }]}>
         <View>
-          <Text style={[styles.headerTitle, { color: colors.primary }]}>fftournament</Text>
-          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>Admin Panel</Text>
+          <Text style={[styles.topBarTitle, { color: colors.primary }]}>fftournament</Text>
+          <Text style={[styles.topBarSub, { color: colors.mutedForeground }]}>Admin Dashboard</Text>
         </View>
         <TouchableOpacity
           onPress={handleLogout}
-          style={[styles.logoutBtn, { backgroundColor: colors.destructive + '22', borderColor: colors.destructive + '44' }]}
+          style={[styles.logoutBtn, { backgroundColor: colors.destructive + '18', borderColor: colors.destructive + '44' }]}
         >
           <Feather name="log-out" size={14} color={colors.destructive} />
-          <Text style={[styles.logoutText, { color: colors.destructive }]}>LOGOUT</Text>
+          <Text style={[styles.logoutBtnText, { color: colors.destructive }]}>LOGOUT</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.list, { paddingBottom: Platform.OS === 'web' ? 100 : insets.bottom + 20 }]}
+        contentContainerStyle={[styles.scroll, { paddingBottom: Platform.OS === 'web' ? 60 : insets.bottom + 24 }]}
       >
-        {/* Stats grid - 2 columns */}
+        {/* ════════════════════════════════════════════════════════════
+            SECTION 1 — Statistics Grid
+        ════════════════════════════════════════════════════════════ */}
+        <SectionHeader label="OVERVIEW" />
         <View style={styles.statsGrid}>
-          {statsCards.map(s => (
+          {stats.map(s => (
             <View key={s.label} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={[styles.statCardIcon, { backgroundColor: s.color + '18' }]}>
-                <Feather name={s.icon} size={16} color={s.color} />
+              <View style={[styles.statIconWrap, { backgroundColor: s.color + '18' }]}>
+                <Feather name={s.icon} size={18} color={s.color} />
               </View>
-              <Text style={[styles.statCardValue, { color: s.color }]}>{s.value}</Text>
-              <Text style={[styles.statCardLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
+              <Text style={[styles.statValue, { color: s.color }]} numberOfLines={1} adjustsFontSizeToFit>{s.value}</Text>
+              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
             </View>
           ))}
         </View>
 
-        {/* Quick menu */}
-        <View style={styles.menuSection}>
-          {menuItems.map(item => (
+        {/* ════════════════════════════════════════════════════════════
+            SECTION 2 — Quick Actions
+        ════════════════════════════════════════════════════════════ */}
+        <SectionHeader label="QUICK ACTIONS" />
+        <View style={styles.quickGrid}>
+          {quickActions.map(a => (
             <TouchableOpacity
-              key={item.label}
-              style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={item.onPress}
+              key={a.label}
+              style={[styles.quickCard, { backgroundColor: a.bg, borderColor: a.border }]}
+              onPress={a.onPress}
               activeOpacity={0.8}
             >
-              <View style={[styles.menuIcon, { backgroundColor: item.color + '22' }]}>
-                <Feather name={item.icon} size={18} color={item.color} />
-              </View>
-              <View style={styles.menuText}>
-                <Text style={[styles.menuLabel, { color: colors.foreground }]}>{item.label}</Text>
-                <Text style={[styles.menuSub, { color: colors.mutedForeground }]}>{item.sub}</Text>
-              </View>
-              {item.badge > 0 && (
-                <View style={[styles.menuBadge, { backgroundColor: item.color }]}>
-                  <Text style={styles.menuBadgeText}>{item.badge}</Text>
+              {(a.badge ?? 0) > 0 && (
+                <View style={[styles.quickBadge, { backgroundColor: a.color }]}>
+                  <Text style={styles.quickBadgeText}>{a.badge}</Text>
                 </View>
               )}
-              <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+              <View style={[styles.quickIconWrap, { backgroundColor: a.color + '22' }]}>
+                <Feather name={a.icon} size={28} color={a.color} />
+              </View>
+              <Text style={[styles.quickLabel, { color: a.color }]}>{a.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Tournament section header + filter */}
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Tournaments</Text>
+        {/* ════════════════════════════════════════════════════════════
+            SECTION 3 — Tournament Analytics
+        ════════════════════════════════════════════════════════════ */}
+        <SectionHeader label="TOURNAMENT ANALYTICS" />
+        <View style={[styles.analyticsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.analyticsGrid}>
+            {analytics.map((a, i) => (
+              <React.Fragment key={a.label}>
+                <View style={styles.analyticItem}>
+                  <Text style={[styles.analyticValue, { color: a.color }]} numberOfLines={1} adjustsFontSizeToFit>{a.value}</Text>
+                  <Text style={[styles.analyticLabel, { color: colors.mutedForeground }]}>{a.label}</Text>
+                </View>
+                {i % 3 !== 2 && <View style={[styles.analyticDivider, { backgroundColor: colors.border }]} />}
+              </React.Fragment>
+            ))}
+          </View>
+
+          {/* Progress bars */}
+          {allRegistrations.length > 0 && (
+            <View style={[styles.progressSection, { borderTopColor: colors.border }]}>
+              <ProgressBar label="Approved" value={approvedCount} total={allRegistrations.length} color={colors.success} colors={colors} />
+              <ProgressBar label="Pending" value={pendingCount} total={allRegistrations.length} color="#FF6B00" colors={colors} />
+              <ProgressBar label="Rejected" value={rejectedCount} total={allRegistrations.length} color={colors.destructive} colors={colors} />
+            </View>
+          )}
+        </View>
+
+        {/* ════════════════════════════════════════════════════════════
+            SECTION 4 — Live Tournaments
+        ════════════════════════════════════════════════════════════ */}
+        <View style={styles.sectionHeaderRow}>
+          <View style={styles.sectionHeaderLeft}>
+            <View style={[styles.sectionDot, { backgroundColor: colors.live }]} />
+            <Text style={[styles.sectionHeaderText, { color: colors.foreground }]}>TOURNAMENTS</Text>
+            <View style={[styles.sectionCount, { backgroundColor: colors.primary + '22' }]}>
+              <Text style={[styles.sectionCountText, { color: colors.primary }]}>{activeTournaments.length}</Text>
+            </View>
+          </View>
           <TouchableOpacity
-            style={[styles.createBtn, { backgroundColor: colors.primary }]}
-            onPress={() => router.push('/admin/create-tournament')}
+            style={[styles.addBtn, { backgroundColor: colors.primary }]}
+            onPress={() => router.push('/admin/create-tournament' as never)}
           >
-            <Feather name="plus" size={14} color={colors.primaryForeground} />
-            <Text style={[styles.createBtnText, { color: colors.primaryForeground }]}>ADD</Text>
+            <Feather name="plus" size={14} color="#000" />
+            <Text style={styles.addBtnText}>ADD NEW</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Status filter chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterChips}>
-          {STATUS_FILTER_OPTIONS.map(opt => {
-            const isActive = statusFilter === opt.key;
-            return (
-              <TouchableOpacity
-                key={opt.key}
-                onPress={() => setStatusFilter(opt.key)}
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: isActive ? colors.primary : colors.muted,
-                    borderColor: isActive ? colors.primary : colors.border,
-                  },
-                ]}
-              >
-                <Text style={[styles.filterChipText, { color: isActive ? '#FFF' : colors.mutedForeground }]}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        {/* Tournament list */}
-        {statusFilter !== 'cancelled' && filteredTournaments.length === 0 && (statusFilter !== 'all' || cancelledTournaments.length === 0) ? (
-          <View style={styles.empty}>
-            <Feather name="inbox" size={44} color={colors.border} />
-            <Text style={[styles.emptyTitle, { color: colors.mutedForeground }]}>
-              {statusFilter === 'all' ? 'No tournaments yet' : `No ${statusFilter} tournaments`}
-            </Text>
-            <Text style={[styles.emptyHint, { color: colors.border }]}>
-              {statusFilter === 'all' ? 'Tap ADD to get started' : 'Change filter to see others'}
-            </Text>
+        {liveTournaments.length === 0 ? (
+          <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="inbox" size={36} color={colors.mutedForeground + '55'} />
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No active tournaments</Text>
+            <Text style={[styles.emptyHint, { color: colors.border }]}>Tap ADD NEW to create one</Text>
           </View>
-        ) : statusFilter !== 'cancelled' ? (
-          filteredTournaments.map(t => <TournamentCard key={t.id} t={t} />)
-        ) : null}
+        ) : (
+          [...liveTournaments].reverse().map(t => (
+            <TournamentRow
+              key={t.id}
+              t={t}
+              allRegistrations={allRegistrations}
+              colors={colors}
+              onManage={() => router.push({ pathname: '/admin/manage-tournament/[id]', params: { id: t.id } } as never)}
+              onCancel={() => handleCancelTournament(t)}
+            />
+          ))
+        )}
 
-        {/* Cancelled section */}
-        {showCancelledSection && cancelledTournaments.length > 0 && (
+        {/* Completed / past tournaments */}
+        {activeTournaments.filter(t => t.status === 'completed' || t.status === 'closed').length > 0 && (
           <>
-            {statusFilter === 'all' && (
-              <View style={[styles.cancelledSectionHeader, { borderTopColor: colors.border }]}>
-                <View style={styles.cancelledTitleRow}>
-                  <View style={[styles.cancelledDot, { backgroundColor: colors.destructive }]} />
-                  <Text style={[styles.sectionTitle, { color: colors.destructive }]}>Cancelled Tournaments</Text>
-                </View>
-                <Text style={[styles.cancelledSub, { color: colors.mutedForeground }]}>Auto-deleted after 24 hours</Text>
-              </View>
-            )}
-
-            {cancelledTournaments.map(t => (
-              <View key={t.id} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.destructive + '44' }]}>
-                <View style={[styles.cancelledStripe, { backgroundColor: colors.destructive }]} />
-
-                <View style={styles.cancelledCardContent}>
-                  <View style={styles.cancelledCardTop}>
-                    <Text style={[styles.cardName, { color: colors.foreground }]} numberOfLines={1}>{t.name}</Text>
-                    <View style={[styles.chip, { backgroundColor: colors.destructive + '22', borderColor: colors.destructive + '44' }]}>
-                      <Feather name="slash" size={9} color={colors.destructive} />
-                      <Text style={[styles.chipText, { color: colors.destructive }]}>CANCELLED</Text>
-                    </View>
-                  </View>
-
-                  <Text style={[styles.cardMetaText, { color: colors.mutedForeground, paddingHorizontal: 0 }]}>
-                    {t.category} · {t.repeatDaily ? 'Daily' : formatDateDisplay(t.date)} · {formatTimeIST(t.time)} IST
-                  </Text>
-
-                  {t.cancelledAt && (
-                    <Text style={[styles.cancelCountdown, { color: colors.live }]}>
-                      ⏱ {getCancelledCountdown(t.cancelledAt)}
-                    </Text>
-                  )}
-
-                  <View style={[styles.cancelledActions, { borderTopColor: colors.border }]}>
-                    <TouchableOpacity
-                      style={[styles.action, { backgroundColor: colors.success + '18' }]}
-                      onPress={() => handleRestore(t)}
-                    >
-                      <Feather name="rotate-ccw" size={13} color={colors.success} />
-                      <Text style={[styles.actionText, { color: colors.success }]}>Restore</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.action, { backgroundColor: colors.destructive + '18' }]}
-                      onPress={() => handleDelete(t)}
-                    >
-                      <Feather name="trash-2" size={13} color={colors.destructive} />
-                      <Text style={[styles.actionText, { color: colors.destructive }]}>Delete</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            ))}
+            <SectionHeader label="COMPLETED TOURNAMENTS" />
+            {activeTournaments
+              .filter(t => t.status === 'completed' || t.status === 'closed')
+              .reverse()
+              .map(t => (
+                <TournamentRow
+                  key={t.id}
+                  t={t}
+                  allRegistrations={allRegistrations}
+                  colors={colors}
+                  onManage={() => router.push({ pathname: '/admin/manage-tournament/[id]', params: { id: t.id } } as never)}
+                  onCancel={() => handleCancelTournament(t)}
+                />
+              ))}
           </>
         )}
+
+        {/* ════════════════════════════════════════════════════════════
+            SECTION 5 — System Settings
+        ════════════════════════════════════════════════════════════ */}
+        <SectionHeader label="SYSTEM SETTINGS" />
+        <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {settingsItems.map((item, i) => (
+            <TouchableOpacity
+              key={item.label}
+              style={[
+                styles.settingsRow,
+                { borderBottomColor: colors.border, borderBottomWidth: i < settingsItems.length - 1 ? 1 : 0 },
+              ]}
+              onPress={item.onPress}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.settingsIcon, { backgroundColor: item.color + '18' }]}>
+                <Feather name={item.icon} size={16} color={item.color} />
+              </View>
+              <Text style={[styles.settingsLabel, { color: colors.foreground }]}>{item.label}</Text>
+              <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          ))}
+        </View>
       </ScrollView>
     </View>
   );
 }
 
+// ─── Sub-components ────────────────────────────────────────────────────────────
+
+function SectionHeader({ label }: { label: string }) {
+  const colors = useColors();
+  return (
+    <View style={sectionHeaderStyles.wrap}>
+      <View style={[sectionHeaderStyles.line, { backgroundColor: colors.primary }]} />
+      <Text style={[sectionHeaderStyles.text, { color: colors.mutedForeground }]}>{label}</Text>
+    </View>
+  );
+}
+
+const sectionHeaderStyles = StyleSheet.create({
+  wrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, marginBottom: 6 },
+  line: { width: 3, height: 14, borderRadius: 2 },
+  text: { fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
+});
+
+function ProgressBar({ label, value, total, color, colors }: {
+  label: string; value: number; total: number; color: string;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  return (
+    <View style={progressStyles.row}>
+      <Text style={[progressStyles.label, { color: colors.mutedForeground }]}>{label}</Text>
+      <View style={[progressStyles.track, { backgroundColor: colors.muted }]}>
+        <View style={[progressStyles.fill, { backgroundColor: color, width: `${pct}%` as `${number}%` }]} />
+      </View>
+      <Text style={[progressStyles.pct, { color }]}>{pct}%</Text>
+    </View>
+  );
+}
+
+const progressStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  label: { fontSize: 12, width: 60 },
+  track: { flex: 1, height: 6, borderRadius: 3, overflow: 'hidden' },
+  fill: { height: '100%', borderRadius: 3 },
+  pct: { fontSize: 11, fontWeight: '700', width: 36, textAlign: 'right' },
+});
+
+const CATEGORY_COLORS: Record<string, string> = {
+  Solo: '#FF6B00', Duo: '#4DA6FF', Squad: '#30D158', '1v1': '#FF3B30',
+};
+
+function TournamentRow({ t, allRegistrations, colors, onManage, onCancel }: {
+  t: Tournament;
+  allRegistrations: JoinedTournament[];
+  colors: ReturnType<typeof useColors>;
+  onManage: () => void;
+  onCancel: () => void;
+}) {
+  const catColor = CATEGORY_COLORS[t.category] ?? colors.primary;
+  const tRegs = allRegistrations.filter(r => r.tournamentId === t.id);
+  const tPending = tRegs.filter(r => r.status === 'pending').length;
+
+  return (
+    <View style={[rowStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[rowStyles.strip, { backgroundColor: catColor }]} />
+      <View style={rowStyles.body}>
+        <View style={rowStyles.top}>
+          <View style={rowStyles.topLeft}>
+            <Text style={[rowStyles.name, { color: colors.foreground }]} numberOfLines={1}>{t.name}</Text>
+            <View style={rowStyles.metaRow}>
+              <View style={[rowStyles.catChip, { backgroundColor: catColor + '22', borderColor: catColor + '44' }]}>
+                <Text style={[rowStyles.catChipText, { color: catColor }]}>{t.category}</Text>
+              </View>
+              <Text style={[rowStyles.metaText, { color: colors.mutedForeground }]}>
+                {t.repeatDaily ? 'Daily' : formatDateDisplay(t.date)} · {formatTimeIST(t.time)} IST
+              </Text>
+            </View>
+          </View>
+          <StatusBadge type="tournament" status={t.status} />
+        </View>
+
+        <View style={[rowStyles.statsRow, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
+          <View style={rowStyles.statItem}>
+            <Text style={[rowStyles.statVal, { color: colors.primary }]}>₹{t.entryFee}</Text>
+            <Text style={[rowStyles.statLbl, { color: colors.mutedForeground }]}>Entry</Text>
+          </View>
+          <View style={[rowStyles.statDivider, { backgroundColor: colors.border }]} />
+          <View style={rowStyles.statItem}>
+            <Text style={[rowStyles.statVal, { color: colors.foreground }]}>{t.slotsUsed}/{t.slots}</Text>
+            <Text style={[rowStyles.statLbl, { color: colors.mutedForeground }]}>Slots</Text>
+          </View>
+          <View style={[rowStyles.statDivider, { backgroundColor: colors.border }]} />
+          <View style={rowStyles.statItem}>
+            <Text style={[rowStyles.statVal, { color: tPending > 0 ? '#FF6B00' : colors.success }]}>{tPending}</Text>
+            <Text style={[rowStyles.statLbl, { color: colors.mutedForeground }]}>Pending</Text>
+          </View>
+          <View style={[rowStyles.statDivider, { backgroundColor: colors.border }]} />
+          <View style={rowStyles.statItem}>
+            <Text style={[rowStyles.statVal, { color: t.published ? colors.success : colors.mutedForeground }]}>
+              {t.published ? 'Live' : 'Draft'}
+            </Text>
+            <Text style={[rowStyles.statLbl, { color: colors.mutedForeground }]}>Status</Text>
+          </View>
+        </View>
+
+        <View style={rowStyles.actions}>
+          <TouchableOpacity
+            style={[rowStyles.manageBtn, { backgroundColor: colors.primary }]}
+            onPress={onManage}
+            activeOpacity={0.85}
+          >
+            <Feather name="settings" size={14} color="#000" />
+            <Text style={rowStyles.manageBtnText}>MANAGE TOURNAMENT</Text>
+            <Feather name="chevron-right" size={14} color="#000" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const rowStyles = StyleSheet.create({
+  card: { borderRadius: 14, borderWidth: 1, overflow: 'hidden', marginBottom: 10 },
+  strip: { height: 3 },
+  body: { padding: 14 },
+  top: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 },
+  topLeft: { flex: 1, marginRight: 8 },
+  name: { fontSize: 15, fontWeight: '700', marginBottom: 5 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  catChip: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, borderWidth: 1 },
+  catChipText: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
+  metaText: { fontSize: 11 },
+  statsRow: {
+    flexDirection: 'row', borderTopWidth: 1, borderBottomWidth: 1,
+    paddingVertical: 10, marginBottom: 10,
+  },
+  statItem: { flex: 1, alignItems: 'center' },
+  statVal: { fontSize: 14, fontWeight: '700' },
+  statLbl: { fontSize: 9, fontWeight: '600', letterSpacing: 0.5, marginTop: 2 },
+  statDivider: { width: 1 },
+  actions: {},
+  manageBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 12, borderRadius: 10,
+  },
+  manageBtnText: { fontSize: 13, fontWeight: '800', color: '#000', letterSpacing: 1 },
+});
+
+// ─── Main Styles ───────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
+
+  topBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1,
+    paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 20, fontWeight: '800', letterSpacing: 1 },
-  headerSub: { fontSize: 11, marginTop: 1 },
+  topBarTitle: { fontSize: 22, fontWeight: '900', letterSpacing: 1 },
+  topBarSub: { fontSize: 11, marginTop: 1 },
   logoutBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
   },
-  logoutText: { fontSize: 12, fontWeight: '700' },
-  list: { paddingHorizontal: 16, paddingTop: 14, gap: 10 },
+  logoutBtnText: { fontSize: 12, fontWeight: '700' },
 
-  statsGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 4,
-  },
+  scroll: { paddingHorizontal: 16, paddingTop: 14 },
+
+  // Stats
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   statCard: {
-    borderRadius: 14, borderWidth: 1, padding: 14,
-    alignItems: 'center', gap: 6,
-    width: '47%', flexGrow: 1,
+    borderRadius: 14, borderWidth: 1, padding: 14, alignItems: 'center', gap: 6,
+    width: '47.5%', flexGrow: 1,
   },
-  statCardIcon: {
-    width: 40, height: 40, borderRadius: 20,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  statCardValue: { fontSize: 22, fontWeight: '800' },
-  statCardLabel: { fontSize: 10, fontWeight: '600', textAlign: 'center', lineHeight: 14 },
+  statIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  statValue: { fontSize: 22, fontWeight: '800' },
+  statLabel: { fontSize: 10, textAlign: 'center', lineHeight: 14 },
 
-  menuSection: { gap: 8 },
-  menuCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    borderRadius: 14, borderWidth: 1, padding: 14,
+  // Quick Actions
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  quickCard: {
+    borderRadius: 16, borderWidth: 1, padding: 18, alignItems: 'center', gap: 10,
+    width: '47.5%', flexGrow: 1, position: 'relative', overflow: 'hidden',
   },
-  menuIcon: {
-    width: 44, height: 44, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  menuText: { flex: 1 },
-  menuLabel: { fontSize: 14, fontWeight: '700' },
-  menuSub: { fontSize: 12, marginTop: 2 },
-  menuBadge: {
+  quickBadge: {
+    position: 'absolute', top: 10, right: 10,
     minWidth: 22, height: 22, borderRadius: 11,
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
   },
-  menuBadgeText: { fontSize: 11, fontWeight: '800', color: '#000' },
+  quickBadgeText: { fontSize: 11, fontWeight: '800', color: '#000' },
+  quickIconWrap: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  quickLabel: { fontSize: 12, fontWeight: '700', textAlign: 'center', lineHeight: 17 },
 
-  sectionHeader: {
+  // Analytics
+  analyticsCard: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+  analyticsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingVertical: 4 },
+  analyticItem: { width: '33.33%', alignItems: 'center', paddingVertical: 14 },
+  analyticValue: { fontSize: 18, fontWeight: '800' },
+  analyticLabel: { fontSize: 10, marginTop: 3, textAlign: 'center' },
+  analyticDivider: { width: 1, alignSelf: 'stretch' },
+  progressSection: { paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 1, gap: 10 },
+
+  // Section header
+  sectionHeaderRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: 14, marginBottom: 8,
   },
-  sectionTitle: { fontSize: 16, fontWeight: '700' },
-  createBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+  sectionHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionDot: { width: 8, height: 8, borderRadius: 4 },
+  sectionHeaderText: { fontSize: 12, fontWeight: '700', letterSpacing: 1.5 },
+  sectionCount: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  sectionCountText: { fontSize: 11, fontWeight: '700' },
+  addBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
   },
-  createBtnText: { fontSize: 13, fontWeight: '700' },
+  addBtnText: { fontSize: 12, fontWeight: '800', color: '#000', letterSpacing: 0.5 },
 
-  filterScroll: { flexGrow: 0 },
-  filterChips: { gap: 8, paddingBottom: 4 },
-  filterChip: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1,
+  // Empty
+  emptyCard: {
+    borderRadius: 14, borderWidth: 1, padding: 32,
+    alignItems: 'center', gap: 8,
   },
-  filterChipText: { fontSize: 12, fontWeight: '600' },
-
-  card: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
-  cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, paddingBottom: 6 },
-  cardNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-  cardName: { fontSize: 14, fontWeight: '700', flex: 1 },
-  cardMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingBottom: 10 },
-  cardMetaText: { fontSize: 11 },
-  metaRight: {},
-  publishRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  publishDot: { width: 7, height: 7, borderRadius: 4 },
-  publishText: { fontSize: 11, fontWeight: '600' },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5, borderWidth: 1 },
-  chipText: { fontSize: 9, fontWeight: '700', letterSpacing: 0.3 },
-  feeRow: { flexDirection: 'row', borderTopWidth: 1, borderBottomWidth: 1 },
-  feeItem: { flex: 1, alignItems: 'center', paddingVertical: 8 },
-  feeLabel: { fontSize: 9, fontWeight: '600', letterSpacing: 0.5, marginBottom: 2 },
-  feeValue: { fontSize: 13, fontWeight: '700' },
-  feeDivider: { width: 1 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 12, borderTopWidth: 1 },
-  action: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  actionText: { fontSize: 12, fontWeight: '600' },
-
-  empty: { alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 48 },
-  emptyTitle: { fontSize: 15, fontWeight: '600' },
+  emptyText: { fontSize: 15, fontWeight: '600' },
   emptyHint: { fontSize: 12 },
 
-  cancelledSectionHeader: { paddingTop: 16, marginTop: 8, borderTopWidth: 1, gap: 4 },
-  cancelledTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cancelledDot: { width: 8, height: 8, borderRadius: 4 },
-  cancelledSub: { fontSize: 11 },
-  cancelledStripe: { height: 3 },
-  cancelledCardContent: { padding: 14, gap: 6 },
-  cancelledCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cancelCountdown: { fontSize: 12, fontWeight: '600' },
-  cancelledActions: { flexDirection: 'row', gap: 8, paddingTop: 10, marginTop: 4, borderTopWidth: 1 },
+  // Settings
+  settingsCard: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+  settingsRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 16, paddingVertical: 14,
+  },
+  settingsIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  settingsLabel: { fontSize: 14, fontWeight: '600', flex: 1 },
 });

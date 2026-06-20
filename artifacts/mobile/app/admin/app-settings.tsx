@@ -28,7 +28,6 @@ export default function AppSettingsScreen() {
   const [whatsapp, setWhatsapp] = useState(paymentSettings.whatsappNumber);
   const [merchantName, setMerchantName] = useState(paymentSettings.merchantName ?? '');
   const [supportEmail, setSupportEmail] = useState(paymentSettings.supportEmail ?? '');
-  const [telegramLink, setTelegramLink] = useState(paymentSettings.telegramLink ?? '');
   const [saving, setSaving] = useState(false);
   const [backing, setBacking] = useState(false);
 
@@ -55,7 +54,6 @@ export default function AppSettingsScreen() {
         whatsappNumber: whatsapp.trim(),
         merchantName: merchantName.trim(),
         supportEmail: supportEmail.trim().toLowerCase(),
-        telegramLink: telegramLink.trim(),
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Saved', 'Settings updated successfully.');
@@ -70,7 +68,7 @@ export default function AppSettingsScreen() {
       const data = getBackupData();
       const date = new Date().toISOString().split('T')[0];
       await Share.share({
-        title: `FirstBooyah_Backup_${date}.json`,
+        title: `fftournament_Backup_${date}.json`,
         message: data,
       });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -153,7 +151,7 @@ export default function AppSettingsScreen() {
           hint="Displayed as the merchant name on the payment screen"
           value={merchantName}
           onChangeText={setMerchantName}
-          placeholder="First Booyah"
+          placeholder="fftournament"
           autoCapitalize="words"
         />
 
@@ -175,18 +173,8 @@ export default function AppSettingsScreen() {
           hint="Players can reach you via this email address"
           value={supportEmail}
           onChangeText={setSupportEmail}
-          placeholder="support@firstbooyah.com"
+          placeholder="support@fftournament.com"
           keyboardType="email-address"
-        />
-
-        <Field
-          icon="send"
-          title="Telegram Link"
-          hint="Telegram channel or group link for player announcements"
-          value={telegramLink}
-          onChangeText={setTelegramLink}
-          placeholder="https://t.me/firstbooyah"
-          keyboardType="url"
         />
 
         <Text style={[styles.groupLabel, { color: colors.mutedForeground }]}>DATA</Text>

@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { useRouter } from 'expo-router';
 import React, { createContext, useContext, useEffect, useState } from 'react';
@@ -62,10 +63,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    setFirebaseUser(null);
-    setUserProfile(null);
-    await signOut(auth);
-    router.replace('/auth/login' as never);
+    try {
+      // Step 1: Clear all React state first
+      setFirebaseUser(null);
+      setUserProfile(null);
+
+      // Step 2: Sign out from Firebase Auth
+      await signOut(auth);
+
+      // Step 3: Clear AsyncStorage (saved positions, cache, etc.)
+      try {
+        await AsyncStorage.clear();
+      } catch {
+        // Non-critical — continue with logout
+      }
+
+      // Step 4: Redirect to login, replacing history so back button doesn't return
+      router.replace('/auth/login' as never);
+    } catch {
+      // Even if something fails, still try to redirect
+      router.replace('/auth/login' as never);
+    }
   };
 
   return (
