@@ -16,6 +16,27 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { updateUserProfile } from '@/services/authService';
+import { getProfileCompletion } from '@/utils/profileCompletion';
+
+type IconName = React.ComponentProps<typeof Feather>['name'];
+
+interface FieldConfig {
+  key: 'name' | 'freeFireUid' | 'phoneNumber' | 'upiId' | 'whatsappNumber';
+  label: string;
+  icon: IconName;
+  placeholder: string;
+  keyboardType: 'default' | 'phone-pad' | 'decimal-pad';
+  autoCapitalize: 'none' | 'words' | 'characters';
+  required: boolean;
+}
+
+const FIELDS: FieldConfig[] = [
+  { key: 'name', label: 'Player Name', icon: 'user', placeholder: 'Your name', keyboardType: 'default', autoCapitalize: 'words', required: true },
+  { key: 'freeFireUid', label: 'Free Fire UID', icon: 'crosshair', placeholder: 'Your Free Fire UID', keyboardType: 'default', autoCapitalize: 'none', required: true },
+  { key: 'phoneNumber', label: 'Phone Number', icon: 'phone', placeholder: '+91 9876543210', keyboardType: 'phone-pad', autoCapitalize: 'none', required: false },
+  { key: 'upiId', label: 'UPI ID', icon: 'credit-card', placeholder: 'yourname@upi', keyboardType: 'default', autoCapitalize: 'none', required: false },
+  { key: 'whatsappNumber', label: 'WhatsApp Number', icon: 'message-circle', placeholder: '+91 9876543210', keyboardType: 'phone-pad', autoCapitalize: 'none', required: false },
+];
 
 export default function EditProfileScreen() {
   const colors = useColors();
@@ -24,32 +45,54 @@ export default function EditProfileScreen() {
   const { firebaseUser, userProfile, refreshProfile } = useAuth();
   const topPadding = Platform.OS === 'web' ? 67 : insets.top;
 
-  const [name, setName] = useState(userProfile?.name ?? '');
-  const [freeFireUid, setFreeFireUid] = useState(userProfile?.freeFireUid ?? '');
-  const [editingName, setEditingName] = useState(false);
-  const [editingUid, setEditingUid] = useState(false);
+  const [values, setValues] = useState<Record<string, string>>({
+    name: '',
+    freeFireUid: '',
+    phoneNumber: '',
+    upiId: '',
+    whatsappNumber: '',
+  });
+  const [editingField, setEditingField] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (userProfile) {
-      setName(userProfile.name ?? '');
-      setFreeFireUid(userProfile.freeFireUid ?? '');
+      setValues({
+        name: userProfile.name ?? '',
+        freeFireUid: userProfile.freeFireUid ?? '',
+        phoneNumber: userProfile.phoneNumber ?? '',
+        upiId: userProfile.upiId ?? '',
+        whatsappNumber: userProfile.whatsappNumber ?? '',
+      });
     }
   }, [userProfile]);
 
+  // Build a temporary profile for completion preview
+  const tempProfile = userProfile ? {
+    ...userProfile,
+    name: values.name,
+    freeFireUid: values.freeFireUid,
+    phoneNumber: values.phoneNumber,
+    upiId: values.upiId,
+    whatsappNumber: values.whatsappNumber,
+  } : null;
+  const completion = getProfileCompletion(tempProfile);
+
   const handleSave = async () => {
     if (!firebaseUser) return;
-    if (!name.trim()) {
-      Alert.alert('Name Required', 'Please enter your name.');
+    if (!values.name.trim()) {
+      Alert.alert('Name Required', 'Please enter your player name.');
       return;
     }
-    setEditingName(false);
-    setEditingUid(false);
+    setEditingField(null);
     setSaving(true);
     try {
       await updateUserProfile(firebaseUser.uid, {
-        name: name.trim(),
-        freeFireUid: freeFireUid.trim(),
+        name: values.name,
+        freeFireUid: values.freeFireUid,
+        phoneNumber: values.phoneNumber,
+        upiId: values.upiId,
+        whatsappNumber: values.whatsappNumber,
       });
       await refreshProfile();
       Alert.alert('Saved', 'Your profile has been updated.', [
@@ -61,6 +104,9 @@ export default function EditProfileScreen() {
       setSaving(false);
     }
   };
+
+  const barWidth = `${completion.percentage}%` as `${number}%`;
+  const barColor = completion.canJoin ? colors.success : colors.primary;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -80,93 +126,115 @@ export default function EditProfileScreen() {
           { paddingBottom: Platform.OS === 'web' ? 40 : insets.bottom + 32 },
         ]}
       >
+        {/* Completion progress card */}
+        <View style={[styles.completionCard, { backgroundColor: colors.card, borderColor: completion.canJoin ? colors.success + '55' : colors.primary + '44' }]}>
+          <View style={styles.completionHeader}>
+            <Text style={[styles.completionLabel, { color: colors.mutedForeground }]}>PROFILE COMPLETION</Text>
+            <Text style={[styles.completionPct, { color: barColor }]}>{completion.percentage}%</Text>
+          </View>
+          <View style={[styles.barBg, { backgroundColor: colors.muted }]}>
+            <View style={[styles.barFill, { width: barWidth, backgroundColor: barColor }]} />
+          </View>
+          <Text style={[styles.completionSub, { color: completion.canJoin ? colors.success : colors.mutedForeground }]}>
+            {completion.completed} of {completion.total} fields completed
+            {completion.canJoin ? ' — Tournament joining unlocked ✓' : ` — Need ${5 - completion.completed} more to join`}
+          </Text>
+          {!completion.canJoin && completion.missingFields.length > 0 && (
+            <View style={styles.missingList}>
+              {completion.missingFields.map(f => (
+                <View key={f} style={styles.missingItem}>
+                  <Feather name="alert-circle" size={12} color={colors.destructive} />
+                  <Text style={[styles.missingText, { color: colors.destructive }]}>{f}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Email (read-only) */}
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-
-          {/* Name field */}
-          <View style={[styles.fieldRow, { borderBottomColor: colors.border }]}>
+          <View style={[styles.fieldRow, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
             <View style={styles.fieldLeft}>
               <View style={[styles.iconWrap, { backgroundColor: colors.primary + '18' }]}>
-                <Feather name="user" size={15} color={colors.primary} />
+                <Feather name="mail" size={15} color={colors.primary} />
               </View>
               <View style={styles.fieldContent}>
-                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Name</Text>
-                {editingName ? (
-                  <TextInput
-                    value={name}
-                    onChangeText={setName}
-                    autoFocus
-                    placeholder="Your name"
-                    placeholderTextColor={colors.mutedForeground}
-                    style={[styles.inlineInput, { color: colors.foreground, borderColor: colors.primary + '66' }]}
-                    autoCapitalize="words"
-                    returnKeyType="done"
-                    onSubmitEditing={() => setEditingName(false)}
-                  />
-                ) : (
-                  <Text style={[styles.fieldValue, { color: colors.foreground }]}>
-                    {name || '—'}
-                  </Text>
-                )}
+                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Email</Text>
+                <Text style={[styles.fieldValue, { color: colors.mutedForeground }]}>
+                  {userProfile?.email || firebaseUser?.email || '—'}
+                </Text>
               </View>
             </View>
-            <TouchableOpacity
-              onPress={() => setEditingName(e => !e)}
-              style={[styles.editIconBtn, {
-                backgroundColor: editingName ? colors.primary + '22' : colors.muted,
-                borderColor: editingName ? colors.primary + '55' : colors.border,
-              }]}
-            >
-              <Feather
-                name={editingName ? 'check' : 'edit-2'}
-                size={14}
-                color={editingName ? colors.primary : colors.mutedForeground}
-              />
-            </TouchableOpacity>
-          </View>
-
-          {/* Free Fire UID field */}
-          <View style={styles.fieldRow}>
-            <View style={styles.fieldLeft}>
-              <View style={[styles.iconWrap, { backgroundColor: colors.primary + '18' }]}>
-                <Feather name="crosshair" size={15} color={colors.primary} />
-              </View>
-              <View style={styles.fieldContent}>
-                <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>Free Fire UID</Text>
-                {editingUid ? (
-                  <TextInput
-                    value={freeFireUid}
-                    onChangeText={setFreeFireUid}
-                    autoFocus
-                    placeholder="Your Free Fire UID"
-                    placeholderTextColor={colors.mutedForeground}
-                    style={[styles.inlineInput, { color: colors.foreground, borderColor: colors.primary + '66' }]}
-                    autoCapitalize="none"
-                    keyboardType="default"
-                    returnKeyType="done"
-                    onSubmitEditing={() => setEditingUid(false)}
-                  />
-                ) : (
-                  <Text style={[styles.fieldValue, { color: colors.foreground }]}>
-                    {freeFireUid || '—'}
-                  </Text>
-                )}
-              </View>
+            <View style={[styles.editIconBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <Feather name="lock" size={13} color={colors.mutedForeground} />
             </View>
-            <TouchableOpacity
-              onPress={() => setEditingUid(e => !e)}
-              style={[styles.editIconBtn, {
-                backgroundColor: editingUid ? colors.primary + '22' : colors.muted,
-                borderColor: editingUid ? colors.primary + '55' : colors.border,
-              }]}
-            >
-              <Feather
-                name={editingUid ? 'check' : 'edit-2'}
-                size={14}
-                color={editingUid ? colors.primary : colors.mutedForeground}
-              />
-            </TouchableOpacity>
           </View>
 
+          {/* Editable fields */}
+          {FIELDS.map((field, i) => {
+            const isEditing = editingField === field.key;
+            const isLast = i === FIELDS.length - 1;
+            const isEmpty = !values[field.key]?.trim();
+            return (
+              <View
+                key={field.key}
+                style={[styles.fieldRow, !isLast && { borderBottomColor: colors.border, borderBottomWidth: 1 }]}
+              >
+                <View style={styles.fieldLeft}>
+                  <View style={[styles.iconWrap, {
+                    backgroundColor: isEmpty && !field.required
+                      ? colors.destructive + '11'
+                      : colors.primary + '18',
+                  }]}>
+                    <Feather
+                      name={field.icon}
+                      size={15}
+                      color={isEmpty && !field.required ? colors.destructive : colors.primary}
+                    />
+                  </View>
+                  <View style={styles.fieldContent}>
+                    <View style={styles.labelRow}>
+                      <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{field.label}</Text>
+                      {!field.required && (
+                        <Text style={[styles.optionalBadge, { color: colors.border }]}>optional</Text>
+                      )}
+                    </View>
+                    {isEditing ? (
+                      <TextInput
+                        value={values[field.key]}
+                        onChangeText={v => setValues(prev => ({ ...prev, [field.key]: v }))}
+                        autoFocus
+                        placeholder={field.placeholder}
+                        placeholderTextColor={colors.mutedForeground}
+                        style={[styles.inlineInput, { color: colors.foreground, borderColor: colors.primary + '66' }]}
+                        autoCapitalize={field.autoCapitalize}
+                        keyboardType={field.keyboardType}
+                        returnKeyType="done"
+                        onSubmitEditing={() => setEditingField(null)}
+                      />
+                    ) : (
+                      <Text style={[styles.fieldValue, { color: isEmpty ? colors.mutedForeground : colors.foreground }]}>
+                        {values[field.key] || `Add ${field.label}`}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setEditingField(isEditing ? null : field.key)}
+                  style={[styles.editIconBtn, {
+                    backgroundColor: isEditing ? colors.primary + '22' : colors.muted,
+                    borderColor: isEditing ? colors.primary + '55' : colors.border,
+                  }]}
+                >
+                  <Feather
+                    name={isEditing ? 'check' : 'edit-2'}
+                    size={14}
+                    color={isEditing ? colors.primary : colors.mutedForeground}
+                  />
+                </TouchableOpacity>
+              </View>
+            );
+          })}
         </View>
 
         {/* Save button */}
@@ -195,32 +263,41 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 14, fontWeight: '700', letterSpacing: 2 },
   backBtn: { padding: 8 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 16, gap: 16 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 16, gap: 14 },
+
+  completionCard: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 8 },
+  completionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  completionLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  completionPct: { fontSize: 22, fontWeight: '800' },
+  barBg: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 4 },
+  completionSub: { fontSize: 12, fontWeight: '500' },
+  missingList: { gap: 4, marginTop: 2 },
+  missingItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  missingText: { fontSize: 12 },
 
   card: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
-
   fieldRow: {
     flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', padding: 16,
-    borderBottomWidth: 1,
+    justifyContent: 'space-between', padding: 14,
     gap: 12,
   },
   fieldLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  iconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  iconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   fieldContent: { flex: 1, gap: 2 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   fieldLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.4 },
-  fieldValue: { fontSize: 15, fontWeight: '500' },
+  optionalBadge: { fontSize: 10 },
+  fieldValue: { fontSize: 14, fontWeight: '500' },
   inlineInput: {
-    fontSize: 15, fontWeight: '500',
+    fontSize: 14, fontWeight: '500',
     borderBottomWidth: 1.5, paddingBottom: 2,
     paddingHorizontal: 0,
   },
-
   editIconBtn: {
     width: 32, height: 32, borderRadius: 8, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 10, paddingVertical: 17, borderRadius: 14,

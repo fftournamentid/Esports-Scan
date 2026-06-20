@@ -64,6 +64,7 @@ export interface JoinedTournament {
   tournamentName: string;
   tournamentTime: string;
   tournamentDate: string;
+  rejectionReason?: string;
 }
 
 export interface UserProfile {
@@ -71,6 +72,9 @@ export interface UserProfile {
   name: string;
   email: string;
   freeFireUid: string;
+  phoneNumber?: string;
+  upiId?: string;
+  whatsappNumber?: string;
   role: 'user' | 'admin';
   createdAt?: string;
 }

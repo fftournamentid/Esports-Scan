@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { getProfileCompletion } from '@/utils/profileCompletion';
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -35,7 +36,6 @@ export default function ProfileScreen() {
           onPress: async () => {
             setLoggingOut(true);
             await logout();
-            // logout() calls signOut then router.replace('/auth/login')
           },
         },
       ],
@@ -44,18 +44,31 @@ export default function ProfileScreen() {
 
   const handleShare = async () => {
     try {
-      await Share.share({
-        message: 'Join FF Tournament App and play tournaments. Download now.',
-      });
-    } catch {
-      // user dismissed share sheet — no action needed
-    }
+      await Share.share({ message: 'Join First Booyah and play Free Fire tournaments. Download now!' });
+    } catch { }
   };
 
   const displayName = userProfile?.name || firebaseUser?.displayName || 'Player';
   const email = userProfile?.email || firebaseUser?.email || '';
   const freeFireUid = userProfile?.freeFireUid || '';
+  const phone = userProfile?.phoneNumber || '';
+  const upiId = userProfile?.upiId || '';
+  const whatsapp = userProfile?.whatsappNumber || '';
   const role = userProfile?.role || 'user';
+
+  const completion = getProfileCompletion(userProfile);
+  const barColor = completion.canJoin ? colors.success : colors.primary;
+  const barWidth = `${completion.percentage}%` as `${number}%`;
+
+  const infoRows = [
+    { icon: 'user' as const, label: 'Name', value: displayName },
+    { icon: 'mail' as const, label: 'Email', value: email || '—' },
+    { icon: 'phone' as const, label: 'Phone', value: phone || '—' },
+    { icon: 'crosshair' as const, label: 'Free Fire UID', value: freeFireUid || '—' },
+    { icon: 'credit-card' as const, label: 'UPI ID', value: upiId || '—' },
+    { icon: 'message-circle' as const, label: 'WhatsApp', value: whatsapp || '—' },
+    { icon: 'shield' as const, label: 'Role', value: role.charAt(0).toUpperCase() + role.slice(1) },
+  ];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -87,26 +100,59 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {/* Profile Completion Card */}
+        <View style={[styles.completionCard, {
+          backgroundColor: colors.card,
+          borderColor: completion.canJoin ? colors.success + '55' : colors.primary + '44',
+        }]}>
+          <View style={styles.completionHeader}>
+            <View>
+              <Text style={[styles.completionTitle, { color: colors.foreground }]}>Profile Completion</Text>
+              <Text style={[styles.completionSub, { color: colors.mutedForeground }]}>
+                {completion.completed} of {completion.total} fields completed
+              </Text>
+            </View>
+            <Text style={[styles.completionPct, { color: barColor }]}>{completion.percentage}%</Text>
+          </View>
+          <View style={[styles.barBg, { backgroundColor: colors.muted }]}>
+            <View style={[styles.barFill, { width: barWidth, backgroundColor: barColor }]} />
+          </View>
+          <Text style={[styles.completionStatus, { color: completion.canJoin ? colors.success : colors.destructive }]}>
+            {completion.canJoin
+              ? '✓ Tournament joining unlocked'
+              : `Fill ${5 - completion.completed} more field${5 - completion.completed === 1 ? '' : 's'} to join tournaments`
+            }
+          </Text>
+          <TouchableOpacity
+            style={[styles.editProfileInline, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '33' }]}
+            onPress={() => router.push('/edit-profile' as never)}
+          >
+            <Feather name="edit-2" size={13} color={colors.primary} />
+            <Text style={[styles.editProfileInlineText, { color: colors.primary }]}>Complete Profile</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Info rows */}
         <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {[
-            { icon: 'user' as const, label: 'Name', value: displayName },
-            { icon: 'mail' as const, label: 'Email', value: email || '—' },
-            { icon: 'crosshair' as const, label: 'Free Fire UID', value: freeFireUid || '—' },
-            { icon: 'shield' as const, label: 'Role', value: role.charAt(0).toUpperCase() + role.slice(1) },
-          ].map((row, i, arr) => (
+          {infoRows.map((row, i) => (
             <View
               key={row.label}
               style={[
                 styles.infoRow,
-                { borderBottomColor: colors.border, borderBottomWidth: i < arr.length - 1 ? 1 : 0 },
+                { borderBottomColor: colors.border, borderBottomWidth: i < infoRows.length - 1 ? 1 : 0 },
               ]}
             >
               <View style={styles.infoLeft}>
                 <Feather name={row.icon} size={14} color={colors.primary} />
                 <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>{row.label}</Text>
               </View>
-              <Text style={[styles.infoValue, { color: colors.foreground }]} numberOfLines={1}>
+              <Text
+                style={[styles.infoValue, {
+                  color: row.value === '—' ? colors.mutedForeground : colors.foreground,
+                  fontStyle: row.value === '—' ? 'italic' : 'normal',
+                }]}
+                numberOfLines={1}
+              >
                 {row.value}
               </Text>
             </View>
@@ -115,24 +161,36 @@ export default function ProfileScreen() {
 
         {/* Edit Profile Button */}
         <TouchableOpacity
-          style={[styles.editBtn, { backgroundColor: colors.card, borderColor: colors.primary + '55' }]}
+          style={[styles.actionBtn, { backgroundColor: colors.card, borderColor: colors.primary + '55' }]}
           onPress={() => router.push('/edit-profile' as never)}
           activeOpacity={0.8}
         >
           <Feather name="edit-2" size={18} color={colors.primary} />
-          <Text style={[styles.editBtnText, { color: colors.primary }]}>Edit Profile</Text>
+          <Text style={[styles.actionBtnText, { color: colors.primary }]}>Edit Profile</Text>
         </TouchableOpacity>
 
-        {/* Share App Button */}
+        {/* Share App */}
         <TouchableOpacity
-          style={[styles.shareBtn, { backgroundColor: colors.card, borderColor: colors.accent + '55' }]}
+          style={[styles.actionBtn, { backgroundColor: colors.card, borderColor: colors.accent + '55' }]}
           onPress={handleShare}
           activeOpacity={0.8}
         >
           <Feather name="share-2" size={18} color={colors.accent} />
-          <Text style={[styles.shareBtnText, { color: colors.accent }]}>Share App</Text>
+          <Text style={[styles.actionBtnText, { color: colors.accent }]}>Share App</Text>
         </TouchableOpacity>
 
+        {/* Logout */}
+        <TouchableOpacity
+          style={[styles.actionBtn, { backgroundColor: colors.card, borderColor: colors.destructive + '44' }, loggingOut && { opacity: 0.6 }]}
+          onPress={handleLogout}
+          disabled={loggingOut}
+          activeOpacity={0.8}
+        >
+          <Feather name="log-out" size={18} color={colors.destructive} />
+          <Text style={[styles.actionBtnText, { color: colors.destructive }]}>
+            {loggingOut ? 'Logging out...' : 'Log Out'}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -163,6 +221,20 @@ const styles = StyleSheet.create({
   },
   adminBadgeText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
 
+  completionCard: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },
+  completionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  completionTitle: { fontSize: 15, fontWeight: '700' },
+  completionSub: { fontSize: 12, marginTop: 2 },
+  completionPct: { fontSize: 26, fontWeight: '800' },
+  barBg: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 4 },
+  completionStatus: { fontSize: 12, fontWeight: '600' },
+  editProfileInline: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, alignSelf: 'flex-start',
+  },
+  editProfileInlineText: { fontSize: 13, fontWeight: '600' },
+
   infoCard: { borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
   infoRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -172,21 +244,9 @@ const styles = StyleSheet.create({
   infoLabel: { fontSize: 13 },
   infoValue: { fontSize: 13, fontWeight: '600', maxWidth: '55%', textAlign: 'right' },
 
-  editBtn: {
+  actionBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 10, paddingVertical: 16, borderRadius: 14, borderWidth: 1,
   },
-  editBtnText: { fontSize: 15, fontWeight: '700' },
-
-  shareBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, paddingVertical: 16, borderRadius: 14, borderWidth: 1,
-  },
-  shareBtnText: { fontSize: 15, fontWeight: '700' },
-
-  logoutBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, paddingVertical: 16, borderRadius: 14, borderWidth: 1,
-  },
-  logoutBtnText: { fontSize: 15, fontWeight: '700' },
+  actionBtnText: { fontSize: 15, fontWeight: '700' },
 });

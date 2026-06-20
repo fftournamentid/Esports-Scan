@@ -54,7 +54,7 @@ export function subscribeTournamentRegistrations(
 }
 
 export async function createRegistration(
-  data: Omit<JoinedTournament, 'id' | 'status' | 'joinedAt'>,
+  data: Omit<JoinedTournament, 'id' | 'status' | 'joinedAt' | 'rejectionReason'>,
 ): Promise<string> {
   // Trim text fields
   const cleaned = {
@@ -66,7 +66,7 @@ export async function createRegistration(
     tournamentName: data.tournamentName?.trim() ?? '',
   };
 
-  // Duplicate registration check (same user + same tournament + same date)
+  // Duplicate registration check — exclude rejected registrations (they are allowed to retry)
   const dupQ = query(
     collection(db, COL.registrations),
     where('userId', '==', cleaned.userId),
@@ -74,7 +74,8 @@ export async function createRegistration(
     where('tournamentDate', '==', cleaned.tournamentDate),
   );
   const existing = await getDocs(dupQ);
-  if (!existing.empty) {
+  const activeExisting = existing.docs.filter(d => d.data().status !== 'rejected');
+  if (activeExisting.length > 0) {
     throw new Error('You have already registered for this tournament today.');
   }
 
@@ -98,6 +99,7 @@ export async function createRegistration(
   const ref = await addDoc(collection(db, COL.registrations), {
     ...cleaned,
     status: 'pending',
+    rejectionReason: '',
     joinedAt: serverTimestamp(),
   });
   return ref.id;
@@ -108,9 +110,19 @@ export async function approveRegistration(
   tournamentId: string,
 ): Promise<void> {
   const batch = writeBatch(db);
-  batch.update(doc(db, COL.registrations, registrationId), { status: 'approved' });
+  batch.update(doc(db, COL.registrations, registrationId), { status: 'approved', rejectionReason: '' });
   batch.update(doc(db, COL.tournaments, tournamentId), { slotsUsed: increment(1) });
   await batch.commit();
+}
+
+export async function rejectRegistration(
+  registrationId: string,
+  reason?: string,
+): Promise<void> {
+  await updateDoc(doc(db, COL.registrations, registrationId), {
+    status: 'rejected',
+    rejectionReason: reason?.trim() ?? '',
+  });
 }
 
 export async function updateRegistrationStatus(

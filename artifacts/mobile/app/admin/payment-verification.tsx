@@ -3,18 +3,22 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { JoinedTournament, JoinStatus } from '@/types';
 import {
   approveRegistration,
+  rejectRegistration,
   subscribeAllRegistrations,
   updateRegistrationStatus,
 } from '@/services/registrationService';
@@ -38,6 +42,12 @@ export default function PaymentVerificationScreen() {
   const [registrations, setRegistrations] = useState<JoinedTournament[]>([]);
   const [filter, setFilter] = useState<FilterTab>('pending');
   const [search, setSearch] = useState('');
+
+  // Rejection modal state
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejecting, setRejecting] = useState(false);
 
   const topPadding = Platform.OS === 'web' ? 67 : insets.top;
 
@@ -73,9 +83,24 @@ export default function PaymentVerificationScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  const handleReject = async (id: string) => {
-    await updateRegistrationStatus(id, 'rejected');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const openRejectModal = (id: string) => {
+    setRejectingId(id);
+    setRejectReason('');
+    setRejectModalVisible(true);
+  };
+
+  const confirmReject = async () => {
+    if (!rejectingId) return;
+    setRejecting(true);
+    try {
+      await rejectRegistration(rejectingId, rejectReason);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } finally {
+      setRejecting(false);
+      setRejectModalVisible(false);
+      setRejectingId(null);
+      setRejectReason('');
+    }
   };
 
   const handleSetPending = async (id: string) => {
@@ -259,6 +284,19 @@ export default function PaymentVerificationScreen() {
                       </Text>
                     </View>
 
+                    {isRejected && r.rejectionReason ? (
+                      <View style={[styles.detailRow, styles.reasonRow, {
+                        backgroundColor: colors.destructive + '11',
+                        borderColor: colors.destructive + '33',
+                      }]}>
+                        <Feather name="message-square" size={12} color={colors.destructive} />
+                        <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Reason</Text>
+                        <Text style={[styles.detailValue, { color: colors.destructive }]} numberOfLines={2}>
+                          {r.rejectionReason}
+                        </Text>
+                      </View>
+                    ) : null}
+
                     <View style={styles.detailRow}>
                       <Feather name="clock" size={12} color={colors.mutedForeground} />
                       <Text style={[styles.detailLabel, { color: colors.mutedForeground }]}>Joined</Text>
@@ -283,7 +321,7 @@ export default function PaymentVerificationScreen() {
                     )}
                     {!isRejected && (
                       <TouchableOpacity
-                        onPress={() => handleReject(r.id)}
+                        onPress={() => openRejectModal(r.id)}
                         style={[styles.actionBtn, { backgroundColor: colors.destructive + '18', borderColor: colors.destructive + '44' }]}
                       >
                         <Feather name="x" size={13} color={colors.destructive} />
@@ -306,6 +344,62 @@ export default function PaymentVerificationScreen() {
           })
         )}
       </ScrollView>
+
+      {/* Rejection reason modal — cross-platform */}
+      <Modal
+        visible={rejectModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRejectModalVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setRejectModalVisible(false)}>
+          <View style={styles.modalOverlay} />
+        </TouchableWithoutFeedback>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalKAV}
+          pointerEvents="box-none"
+        >
+          <View style={[styles.modalBox, { backgroundColor: colors.card, borderColor: colors.destructive + '55' }]}>
+            <View style={styles.modalHeader}>
+              <Feather name="x-circle" size={20} color={colors.destructive} />
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Reject Payment</Text>
+            </View>
+            <Text style={[styles.modalSub, { color: colors.mutedForeground }]}>
+              Optionally enter a reason. The player will see this reason.
+            </Text>
+            <TextInput
+              value={rejectReason}
+              onChangeText={setRejectReason}
+              placeholder="e.g. Invalid UTR, screenshot mismatch..."
+              placeholderTextColor={colors.mutedForeground}
+              style={[styles.modalInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.muted }]}
+              autoFocus
+              multiline
+              numberOfLines={3}
+              returnKeyType="done"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
+                onPress={() => setRejectModalVisible(false)}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: colors.destructive + '22', borderColor: colors.destructive + '55' }, rejecting && { opacity: 0.6 }]}
+                onPress={confirmReject}
+                disabled={rejecting}
+              >
+                <Feather name="x" size={14} color={colors.destructive} />
+                <Text style={[styles.modalBtnText, { color: colors.destructive }]}>
+                  {rejecting ? 'Rejecting...' : 'Confirm Reject'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -360,6 +454,7 @@ const styles = StyleSheet.create({
   detailsGrid: { gap: 6 },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   utrRow: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 6, marginTop: 2 },
+  reasonRow: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 6, alignItems: 'flex-start' },
   detailLabel: { fontSize: 11, minWidth: 72 },
   detailValue: { fontSize: 12, fontWeight: '500', flex: 1 },
   utrValue: { fontSize: 13, fontWeight: '700' },
@@ -369,4 +464,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1,
   },
   actionBtnText: { fontSize: 12, fontWeight: '600' },
+  // Modal
+  modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
+  modalKAV: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  modalBox: {
+    width: '100%', maxWidth: 400, borderRadius: 18, borderWidth: 1.5,
+    padding: 20, gap: 14,
+  },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  modalTitle: { fontSize: 17, fontWeight: '700' },
+  modalSub: { fontSize: 13, lineHeight: 18 },
+  modalInput: {
+    borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 14,
+    minHeight: 80, textAlignVertical: 'top',
+  },
+  modalActions: { flexDirection: 'row', gap: 10 },
+  modalBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 12, borderRadius: 10, borderWidth: 1,
+  },
+  modalBtnText: { fontSize: 13, fontWeight: '700' },
 });

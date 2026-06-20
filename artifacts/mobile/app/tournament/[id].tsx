@@ -22,6 +22,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTournament } from '@/context/TournamentContext';
 import { useColors } from '@/hooks/useColors';
 import { formatDateDisplay, formatTimeIST, getNextDailyOccurrenceIST } from '@/utils/time';
+import { getProfileCompletion } from '@/utils/profileCompletion';
 
 const CATEGORY_COLORS: Record<string, string> = {
   Solo: '#FF6B00', Duo: '#4DA6FF', Squad: '#30D158', '1v1': '#FF3B30',
@@ -71,7 +72,8 @@ export default function TournamentDetailScreen() {
 
   const catColor = CATEGORY_COLORS[t.category] ?? colors.primary;
   const slotsLeft = t.slots - t.slotsUsed;
-  const canJoin = t.status === 'upcoming' && slotsLeft > 0 && !existingJoin;
+  const isRejected = existingJoin?.status === 'rejected';
+  const canJoin = t.status === 'upcoming' && slotsLeft > 0 && (!existingJoin || isRejected);
   const upiLink = `upi://pay?pa=${encodeURIComponent(paymentSettings.upiId)}&pn=FreeFire%20Tournament&am=${t.entryFee}&tn=Tournament%20Entry`;
 
   const countdownDate = t.repeatDaily
@@ -86,6 +88,20 @@ export default function TournamentDetailScreen() {
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Sign In', onPress: () => router.push('/auth/login' as never) },
+        ]
+      );
+      return;
+    }
+
+    // Profile completion check — must have at least 5/6 fields filled
+    const completion = getProfileCompletion(userProfile);
+    if (!completion.canJoin) {
+      Alert.alert(
+        'Complete Your Profile',
+        `Your profile is ${completion.percentage}% complete. Fill at least 5 of 6 fields to join tournaments.\n\nMissing: ${completion.missingFields.join(', ')}`,
+        [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Complete Profile', onPress: () => router.push('/edit-profile' as never) },
         ]
       );
       return;
@@ -231,6 +247,24 @@ export default function TournamentDetailScreen() {
           </View>
         )}
 
+        {/* Rejection banner — shown when user is rejoining after a rejection */}
+        {isRejected && canJoin && (
+          <View style={[styles.rejectedBanner, { backgroundColor: colors.destructive + '18', borderColor: colors.destructive + '55' }]}>
+            <Feather name="x-circle" size={20} color={colors.destructive} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rejectedTitle, { color: colors.destructive }]}>PAYMENT REJECTED</Text>
+              {existingJoin?.rejectionReason ? (
+                <Text style={[styles.rejectedReason, { color: colors.mutedForeground }]}>
+                  Reason: {existingJoin.rejectionReason}
+                </Text>
+              ) : null}
+              <Text style={[styles.rejectedSub, { color: colors.mutedForeground }]}>
+                Please submit a new UTR / Transaction ID to rejoin.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* QR + UPI */}
         {canJoin && (
           <View style={[styles.payCard, { backgroundColor: colors.card, borderColor: colors.primary + '44' }]}>
@@ -338,8 +372,8 @@ export default function TournamentDetailScreen() {
           </>
         )}
 
-        {/* Already joined */}
-        {existingJoin && (
+        {/* Already joined (only for non-rejected statuses) */}
+        {existingJoin && !isRejected && (
           <View style={[styles.joinedCard, { backgroundColor: colors.success + '18', borderColor: colors.success + '44' }]}>
             <Feather name="check-circle" size={20} color={colors.success} />
             <View style={styles.joinedTextGroup}>
@@ -486,4 +520,8 @@ const styles = StyleSheet.create({
   statusBannerText: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
   resultsBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderRadius: 12, padding: 14 },
   resultsBtnText: { fontSize: 13, fontWeight: '700', letterSpacing: 1 },
+  rejectedBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderWidth: 1.5, borderRadius: 14, padding: 16 },
+  rejectedTitle: { fontSize: 14, fontWeight: '800', letterSpacing: 0.5, marginBottom: 4 },
+  rejectedReason: { fontSize: 13, marginBottom: 4 },
+  rejectedSub: { fontSize: 12 },
 });

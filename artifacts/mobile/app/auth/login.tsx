@@ -66,7 +66,7 @@ export default function LoginScreen() {
       >
         <View style={s.logoWrap}>
           <Image source={require('@/assets/images/icon.png')} style={s.logo} />
-          <Text style={[s.brand, { color: colors.primary }]}>FREE FIRE</Text>
+          <Text style={[s.brand, { color: colors.primary }]}>FIRST BOOYAH</Text>
           <Text style={[s.brandSub, { color: colors.mutedForeground }]}>TOURNAMENT HUB</Text>
         </View>
 

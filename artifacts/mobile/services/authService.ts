@@ -23,6 +23,9 @@ export async function signUp(
     name: name.trim(),
     email: email.trim().toLowerCase(),
     freeFireUid: freeFireUid.trim(),
+    phoneNumber: '',
+    upiId: '',
+    whatsappNumber: '',
     role: 'user',
     createdAt: serverTimestamp(),
   });
@@ -49,6 +52,9 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     name: data.name ?? '',
     email: data.email ?? '',
     freeFireUid: data.freeFireUid ?? '',
+    phoneNumber: data.phoneNumber ?? '',
+    upiId: data.upiId ?? '',
+    whatsappNumber: data.whatsappNumber ?? '',
     role: data.role ?? 'user',
     createdAt: data.createdAt instanceof Timestamp
       ? data.createdAt.toDate().toISOString()
@@ -58,9 +64,21 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
 
 export async function updateUserProfile(
   uid: string,
-  data: { name: string; freeFireUid: string },
+  data: {
+    name: string;
+    freeFireUid: string;
+    phoneNumber?: string;
+    upiId?: string;
+    whatsappNumber?: string;
+  },
 ): Promise<void> {
-  await updateDoc(doc(db, 'users', uid), data);
+  await updateDoc(doc(db, 'users', uid), {
+    name: data.name.trim(),
+    freeFireUid: data.freeFireUid.trim(),
+    phoneNumber: data.phoneNumber?.trim() ?? '',
+    upiId: data.upiId?.trim() ?? '',
+    whatsappNumber: data.whatsappNumber?.trim() ?? '',
+  });
 }
 
 export async function ensureUserProfile(user: FirebaseUser): Promise<void> {
@@ -72,6 +90,9 @@ export async function ensureUserProfile(user: FirebaseUser): Promise<void> {
     name: user.displayName ?? 'Player',
     email: user.email?.toLowerCase() ?? '',
     freeFireUid: '',
+    phoneNumber: '',
+    upiId: '',
+    whatsappNumber: '',
     role: 'user',
     createdAt: serverTimestamp(),
   });
