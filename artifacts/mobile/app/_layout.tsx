@@ -37,7 +37,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
     const firstSegment = segments[0] as string | undefined;
     const inAuthGroup = firstSegment === "auth";
-    const inAdminGroup = firstSegment === "admin" || firstSegment === "admin-dashboard";
+    const inAdminGroup =
+      firstSegment === "admin" ||
+      firstSegment === "admin-dashboard" ||
+      firstSegment === "(admin-tabs)";
     const isAdmin = userProfile?.role === "admin";
 
     console.log('[AuthGate] effect — firebaseUser:', firebaseUser?.uid ?? null, '| segment:', firstSegment, '| isAdmin:', isAdmin);
@@ -52,8 +55,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
     if (isAdmin) {
       if (!inAdminGroup && !ADMIN_PASSTHROUGH.has(firstSegment ?? "")) {
-        console.log('[AuthGate] admin outside admin area → replace /admin-dashboard');
-        router.replace('/admin-dashboard' as never);
+        console.log('[AuthGate] admin outside admin area → replace /(admin-tabs)/');
+        router.replace('/(admin-tabs)/' as never);
       }
       return;
     }
@@ -82,6 +85,7 @@ function RootLayoutNav() {
           <Stack.Screen name="room/[id]" />
           <Stack.Screen name="results/[id]" />
           <Stack.Screen name="notifications" />
+          <Stack.Screen name="(admin-tabs)" />
           <Stack.Screen name="admin-dashboard" />
           <Stack.Screen name="admin" />
           <Stack.Screen name="+not-found" />
