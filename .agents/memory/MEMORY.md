@@ -1,2 +1,3 @@
 - [Free Fire Tournament Hub](fftournamentapp.md) — Expo Router + Firebase Auth + Firestore; project ID fftournamentid-4185d; admin role enforced via Firestore `get()` in rules, not custom claims.
 - [Admin UX decisions](admin-ux.md) — Tournament list uses "MANAGE TOURNAMENT >" single button → /admin/manage-tournament/[id]; admin dashboard has 5 sections (Stats, Quick Actions, Analytics, Tournaments, Settings). No Telegram field anywhere.
+- [Web startup crashes fixed](web-startup-crashes.md) — Two root causes of white-screen crash on web startup; fixes applied to _layout.tsx.

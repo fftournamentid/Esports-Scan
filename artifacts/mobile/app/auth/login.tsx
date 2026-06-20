@@ -16,8 +16,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { signIn } from '@/services/authService';
 import { useColors } from '@/hooks/useColors';
+import { stepLog } from '@/utils/stepLog';
 
 export default function LoginScreen() {
+  stepLog('[STEP 19] LoginScreen: mounted/rendering');
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();

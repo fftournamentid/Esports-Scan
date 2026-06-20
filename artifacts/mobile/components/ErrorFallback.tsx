@@ -21,6 +21,7 @@ export type ErrorFallbackProps = {
 };
 
 export function ErrorFallback({ error, componentStack, resetError }: ErrorFallbackProps) {
+  try { (window as unknown as Record<string, (m: string) => void>).__stepLog?.('[STEP EF] ErrorFallback rendering: ' + error?.message); } catch (_) {}
   const colors = useColors();
   const insets = useSafeAreaInsets();
 

@@ -1,4 +1,5 @@
 import "@/utils/webErrorCapture";
+import { stepLog } from "@/utils/stepLog";
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -21,6 +22,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { TournamentProvider } from "@/context/TournamentContext";
 
 SplashScreen.preventAutoHideAsync();
+stepLog('[STEP 1] _layout.tsx module loaded');
 
 const queryClient = new QueryClient();
 
@@ -33,24 +35,24 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const router = useRouter();
 
-  console.log('[AuthGate] render — authLoading:', authLoading, '| user:', firebaseUser?.uid ?? null, '| segments:', JSON.stringify(segments));
+  const firstSegment = segments[0] as string | undefined;
+  const inAuthGroup = firstSegment === "auth";
+  const inAdminGroup =
+    firstSegment === "admin" ||
+    firstSegment === "admin-dashboard" ||
+    firstSegment === "(admin-tabs)";
+  const isAdmin = userProfile?.role === "admin";
+
+  stepLog('[STEP 12] AuthGate render — authLoading:' + authLoading + ' user:' + (firebaseUser?.uid ?? null) + ' seg:' + firstSegment);
 
   useEffect(() => {
     if (authLoading) return;
 
-    const firstSegment = segments[0] as string | undefined;
-    const inAuthGroup = firstSegment === "auth";
-    const inAdminGroup =
-      firstSegment === "admin" ||
-      firstSegment === "admin-dashboard" ||
-      firstSegment === "(admin-tabs)";
-    const isAdmin = userProfile?.role === "admin";
-
-    console.log('[AuthGate] effect — firebaseUser:', firebaseUser?.uid ?? null, '| segment:', firstSegment, '| isAdmin:', isAdmin);
+    stepLog('[STEP 15] AuthGate effect — user:' + (firebaseUser?.uid ?? null) + ' seg:' + firstSegment + ' admin:' + isAdmin);
 
     if (!firebaseUser) {
       if (!inAuthGroup) {
-        console.log('[AuthGate] no user, not in auth group → replace /auth/login');
+        stepLog('[STEP 16] AuthGate: no user → replace /auth/login');
         router.replace('/auth/login' as never);
       }
       return;
@@ -58,19 +60,21 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
     if (isAdmin) {
       if (!inAdminGroup && !ADMIN_PASSTHROUGH.has(firstSegment ?? "")) {
-        console.log('[AuthGate] admin outside admin area → replace /(admin-tabs)/');
+        stepLog('[STEP 17] AuthGate: admin outside admin area → replace /(admin-tabs)/');
         router.replace('/(admin-tabs)/' as never);
       }
       return;
     }
 
     if (inAuthGroup || inAdminGroup) {
-      console.log('[AuthGate] regular user on auth/admin route → replace /');
+      stepLog('[STEP 18] AuthGate: regular user on auth/admin route → replace /');
       router.replace('/' as never);
     }
   }, [firebaseUser, userProfile, authLoading, segments]);
 
+  // Show spinner while auth is loading
   if (authLoading) {
+    stepLog('[STEP 13] AuthGate: showing spinner (authLoading=true)');
     return (
       <View style={{ flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator size="large" color="#f97316" />
@@ -78,6 +82,28 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Keep spinner while redirect is still pending to avoid briefly flashing the wrong screen.
+  // Non-logged-in user not yet on /auth route → redirect to /auth/login is queued
+  if (!firebaseUser && !inAuthGroup) {
+    stepLog('[STEP 13b] AuthGate: no user, redirect pending → holding spinner');
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#f97316" />
+      </View>
+    );
+  }
+
+  // Admin user not yet on admin route → redirect pending
+  if (firebaseUser && isAdmin && !inAdminGroup && !ADMIN_PASSTHROUGH.has(firstSegment ?? "")) {
+    stepLog('[STEP 13c] AuthGate: admin redirect pending → holding spinner');
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#f97316" />
+      </View>
+    );
+  }
+
+  stepLog('[STEP 14] AuthGate: authLoading=false, route settled → rendering children');
   return <>{children}</>;
 }
 
@@ -140,6 +166,7 @@ function AppProviders({ children }: { children: React.ReactNode }) {
 }
 
 export default function RootLayout() {
+  stepLog('[STEP 2] RootLayout: component rendering');
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -149,11 +176,16 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
+      stepLog('[STEP 3] RootLayout: fonts ready (loaded=' + fontsLoaded + ' error=' + !!fontError + ') → hiding splash');
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) {
+  // On web, useFonts can hang indefinitely (CSS font loading is async and unreliable
+  // in the Metro dev bundle). Skip the wait on web — system/fallback fonts render fine.
+  const isWeb = Platform.OS === 'web';
+  if (!isWeb && !fontsLoaded && !fontError) {
+    stepLog('[STEP 2b] RootLayout: waiting for fonts (native)...');
     return (
       <View style={{ flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator size="large" color="#f97316" />
@@ -161,6 +193,7 @@ export default function RootLayout() {
     );
   }
 
+  stepLog('[STEP 4] RootLayout: mounting AppProviders + RootLayoutNav');
   return (
     <AppProviders>
       <RootLayoutNav />

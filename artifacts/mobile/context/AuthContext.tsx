@@ -1,3 +1,4 @@
+import { stepLog } from '@/utils/stepLog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
 import { useRouter } from 'expo-router';
@@ -23,6 +24,7 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  stepLog('[STEP 5] AuthProvider: mounted');
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -30,40 +32,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function loadProfile(user: FirebaseUser): Promise<void> {
     try {
-      console.log('[AuthContext] loadProfile start uid:', user.uid);
+      stepLog('[STEP 9] loadProfile start uid:' + user.uid);
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Profile load timeout')), 10000)
       );
       let profile = await Promise.race([getUserProfile(user.uid), timeout]);
-      console.log('[AuthContext] getUserProfile result:', profile ? 'found' : 'null');
+      stepLog('[STEP 10] getUserProfile result:' + (profile ? 'found' : 'null'));
       if (!profile) {
         await ensureUserProfile(user);
         profile = await Promise.race([getUserProfile(user.uid), timeout]);
-        console.log('[AuthContext] after ensureUserProfile, profile:', profile ? 'found' : 'null');
+        stepLog('[STEP 10b] after ensureUserProfile, profile:' + (profile ? 'found' : 'null'));
       }
       setUserProfile(profile);
     } catch (e) {
-      console.error('[AuthContext] loadProfile ERROR:', (e as Error).message);
+      stepLog('[STEP 10-ERR] loadProfile ERROR:' + (e as Error).message);
       setUserProfile(null);
     }
   }
 
   useEffect(() => {
-    console.log('[AuthContext] subscribing to onAuthStateChanged');
+    stepLog('[STEP 6] AuthProvider: subscribing to onAuthStateChanged');
     const unsub = onAuthStateChanged(auth, async (user) => {
-      console.log('[AuthContext] onAuthStateChanged fired, user:', user?.uid ?? null);
+      stepLog('[STEP 7] onAuthStateChanged fired, user:' + (user?.uid ?? null));
       if (!user) {
-        console.log('[AuthContext] no user → setAuthLoading(false)');
+        stepLog('[STEP 8] no user → setAuthLoading(false)');
         setFirebaseUser(null);
         setUserProfile(null);
         setAuthLoading(false);
         return;
       }
-      console.log('[AuthContext] user found, loading profile...');
+      stepLog('[STEP 9-pre] user found → setAuthLoading(true), loading profile...');
       setAuthLoading(true);
       setFirebaseUser(user);
       await loadProfile(user);
-      console.log('[AuthContext] profile loaded → setAuthLoading(false)');
+      stepLog('[STEP 11] profile loaded → setAuthLoading(false)');
       setAuthLoading(false);
     });
     return unsub;

@@ -10,6 +10,7 @@ import { useColors } from "@/hooks/useColors";
 const absoluteFill = StyleSheet.absoluteFillObject;
 
 export default function TabLayout() {
+  try { (window as unknown as Record<string, (m: string) => void>).__stepLog?.('[STEP 21] TabLayout rendering'); } catch (_) {}
   const colors = useColors();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";

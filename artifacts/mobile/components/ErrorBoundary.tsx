@@ -31,6 +31,7 @@ export class ErrorBoundary extends Component<
 
   componentDidCatch(error: Error, info: { componentStack: string }): void {
     this.setState({ componentStack: info.componentStack });
+    try { (window as unknown as Record<string, (m: string) => void>).__stepLog?.('[STEP EB] ErrorBoundary caught: ' + error.message); } catch (_) {}
     console.error('[ErrorBoundary] CAUGHT ERROR:', error.message);
     console.error('[ErrorBoundary] STACK:', error.stack);
     console.error('[ErrorBoundary] COMPONENT STACK:', info.componentStack);
